@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Document Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="h2 mb-4">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </h1>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Dokumenty</h5>
+                        <h2 class="mb-0">{{ total_documents }}</h2>
+                    </div>
+                    <div>
+                        <i class="bi bi-files" style="font-size: 3rem; opacity: 0.7;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Foldery</h5>
+                        <h2 class="mb-0">{{ total_folders }}</h2>
+                    </div>
+                    <div>
+                        <i class="bi bi-folder" style="font-size: 3rem; opacity: 0.7;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Ostatnia aktywność</h5>
+                        <p class="mb-0">{{ request.user.last_login|date:"d.m.Y H:i" }}</p>
+                    </div>
+                    <div>
+                        <i class="bi bi-clock" style="font-size: 3rem; opacity: 0.7;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Documents -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history"></i> Ostatnio zmodyfikowane dokumenty
+                </h5>
+                <a href="{% url 'documents:document_list' %}" class="btn btn-outline-primary btn-sm">
+                    Zobacz wszystkie
+                </a>
+            </div>
+            <div class="card-body">
+                {% if recent_documents %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nazwa</th>
+                                    <th>Folder</th>
+                                    <th>Właściciel</th>
+                                    <th>Ostatnia modyfikacja</th>
+                                    <th>Rozmiar</th>
+                                    <th>Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for document in recent_documents %}
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-file-earmark-{% if document.typ_pliku == 'application/pdf' %}pdf{% elif 'word' in document.typ_pliku %}word{% elif 'excel' in document.typ_pliku %}excel{% else %}text{% endif %}"></i>
+                                        <a href="{% url 'documents:document_detail' document.id %}" class="text-decoration-none">
+                                            {{ document.nazwa }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ document.folder.nazwa }}</span>
+                                    </td>
+                                    <td>{{ document.wlasciciel.username }}</td>
+                                    <td>{{ document.ostatnia_modyfikacja|date:"d.m.Y H:i" }}</td>
+                                    <td>{{ document.get_file_size_display }}</td>
+                                    <td>
+                                        <a href="{% url 'documents:document_detail' document.id %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <h5 class="text-muted mt-3">Brak dokumentów</h5>
+                        <p class="text-muted">Rozpocznij od dodania pierwszego dokumentu.</p>
+                        <a href="{% url 'documents:document_upload' %}" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Dodaj dokument
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions (if no recent activity) -->
+{% if not recent_documents %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning"></i> Szybkie akcje
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <a href="{% url 'documents:document_upload' %}" class="btn btn-outline-primary btn-lg w-100 mb-3">
+                            <i class="bi bi-upload d-block" style="font-size: 2rem;"></i>
+                            Dodaj dokument
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'documents:folder_create' %}" class="btn btn-outline-success btn-lg w-100 mb-3">
+                            <i class="bi bi-folder-plus d-block" style="font-size: 2rem;"></i>
+                            Utwórz folder
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'documents:document_list' %}" class="btn btn-outline-info btn-lg w-100 mb-3">
+                            <i class="bi bi-search d-block" style="font-size: 2rem;"></i>
+                            Przeglądaj
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'admin:index' %}" class="btn btn-outline-warning btn-lg w-100 mb-3">
+                            <i class="bi bi-gear d-block" style="font-size: 2rem;"></i>
+                            Ustawienia
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

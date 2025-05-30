@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+
+{% block title %}Utwórz folder - Document Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-folder-plus me-2"></i>Utwórz nowy folder
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.nazwa.id_for_label }}" class="form-label">
+                            Nazwa folderu <span class="text-danger">*</span>
+                        </label>
+                        {{ form.nazwa }}
+                        {% if form.nazwa.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.nazwa.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Wybierz opisową nazwę dla swojego folderu.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.opis.id_for_label }}" class="form-label">
+                            Opis
+                        </label>
+                        {{ form.opis }}
+                        {% if form.opis.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.opis.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Opcjonalny opis pomoże innym zrozumieć przeznaczenie folderu.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="{{ form.rodzic.id_for_label }}" class="form-label">
+                            Folder nadrzędny
+                        </label>
+                        {{ form.rodzic }}
+                        {% if form.rodzic.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.rodzic.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Wybierz folder nadrzędny lub pozostaw puste aby utworzyć folder główny.
+                        </div>
+                    </div>
+                    
+                    <!-- Folder Preview -->
+                    <div class="card bg-light mb-4" id="folder-preview" style="display: none;">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-eye me-2"></i>Podgląd folderu
+                            </h6>
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-folder text-primary me-3" style="font-size: 2rem;"></i>
+                                <div>
+                                    <h6 class="mb-1" id="preview-name">Nazwa folderu</h6>
+                                    <small class="text-muted" id="preview-path">Ścieżka: /</small>
+                                    <br>
+                                    <small class="text-muted" id="preview-description">Opis folderu</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'documents:folder_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-2"></i>Anuluj
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="submit-btn">
+                            <i class="bi bi-folder-plus me-2"></i>Utwórz folder
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Tips Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-lightbulb me-2"></i>Wskazówki organizacji folderów
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-success">✓ Dobre praktyki:</h6>
+                        <ul class="list-unstyled small">
+                            <li>• Używaj jasnych, opisowych nazw</li>
+                            <li>• Grupuj dokumenty tematycznie</li>
+                            <li>• Twórz hierarchię 2-3 poziomów</li>
+                            <li>• Dodawaj opisy do folderów</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-primary">💡 Przykłady struktur:</h6>
+                        <ul class="list-unstyled small">
+                            <li>• Projekty → Projekt A, Projekt B</li>
+                            <li>• Dokumenty → Umowy, Faktury</li>
+                            <li>• Zespół → Marketing, IT, HR</li>
+                            <li>• Status → Robocze, Gotowe</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const nameInput = document.getElementById('{{ form.nazwa.id_for_label }}');
+    const descInput = document.getElementById('{{ form.opis.id_for_label }}');
+    const parentSelect = document.getElementById('{{ form.rodzic.id_for_label }}');
+    const preview = document.getElementById('folder-preview');
+    const previewName = document.getElementById('preview-name');
+    const previewPath = document.getElementById('preview-path');
+    const previewDescription = document.getElementById('preview-description');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    // Real-time preview update
+    function updatePreview() {
+        const name = nameInput.value.trim();
+        const description = descInput.value.trim();
+        const parentText = parentSelect.options[parentSelect.selectedIndex].text;
+        
+        if (name) {
+            preview.style.display = 'block';
+            previewName.textContent = name;
+            
+            // Build path
+            let path = '/';
+            if (parentSelect.value && parentText !== 'Folder główny') {
+                path = `/${parentText}/${name}`;
+            } else {
+                path = `/${name}`;
+            }
+            previewPath.textContent = `Ścieżka: ${path}`;
+            
+            // Description
+            if (description) {
+                previewDescription.textContent = description;
+                previewDescription.style.display = 'block';
+            } else {
+                previewDescription.style.display = 'none';
+            }
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+    
+    // Event listeners for real-time preview
+    nameInput.addEventListener('input', updatePreview);
+    descInput.addEventListener('input', updatePreview);
+    parentSelect.addEventListener('change', updatePreview);
+    
+    // Form validation
+    nameInput.addEventListener('input', function() {
+        const name = this.value.trim();
+        
+        // Check for invalid characters
+        const invalidChars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/'];
+        const hasInvalidChars = invalidChars.some(char => name.includes(char));
+        
+        if (hasInvalidChars) {
+            this.classList.add('is-invalid');
+            showFieldError(this, 'Nazwa nie może zawierać znaków: ' + invalidChars.join(' '));
+        } else if (name.length > 255) {
+            this.classList.add('is-invalid');
+            showFieldError(this, 'Nazwa nie może być dłuższa niż 255 znaków.');
+        } else if (name.length > 0) {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+            hideFieldError(this);
+        } else {
+            this.classList.remove('is-invalid', 'is-valid');
+            hideFieldError(this);
+        }
+        
+        updateSubmitButton();
+    });
+    
+    function showFieldError(field, message) {
+        // Remove existing error
+        hideFieldError(field);
+        
+        // Add new error
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'invalid-feedback';
+        errorDiv.textContent = message;
+        field.parentNode.appendChild(errorDiv);
+    }
+    
+    function hideFieldError(field) {
+        const existingError = field.parentNode.querySelector('.invalid-feedback');
+        if (existingError) {
+            existingError.remove();
+        }
+    }
+    
+    function updateSubmitButton() {
+        const name = nameInput.value.trim();
+        const isValid = name.length > 0 && !nameInput.classList.contains('is-invalid');
+        
+        submitBtn.disabled = !isValid;
+        if (isValid) {
+            submitBtn.classList.remove('btn-secondary');
+            submitBtn.classList.add('btn-primary');
+        } else {
+            submitBtn.classList.remove('btn-primary');
+            submitBtn.classList.add('btn-secondary');
+        }
+    }
+    
+    // Form submission
+    form.addEventListener('submit', function(e) {
+        const name = nameInput.value.trim();
+        
+        if (!name) {
+            e.preventDefault();
+            alert('Proszę podać nazwę folderu.');
+            nameInput.focus();
+            return false;
+        }
+        
+        // Show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Tworzenie...';
+        
+        return true;
+    });
+    
+    // Auto-focus name input
+    nameInput.focus();
+    
+    // Initialize
+    updatePreview();
+    updateSubmitButton();
+    
+    // Suggest folder names based on existing patterns
+    const folderSuggestions = [
+        'Dokumenty robocze',
+        'Projekty',
+        'Archiwum',
+        'Szablony',
+        'Faktury',
+        'Umowy',
+        'Raporty',
+        'Prezentacje',
+        'Dokumentacja',
+        'Materiały szkoleniowe'
+    ];
+    
+    // Add datalist for autocomplete
+    const datalist = document.createElement('datalist');
+    datalist.id = 'folder-suggestions';
+    folderSuggestions.forEach(suggestion => {
+        const option = document.createElement('option');
+        option.value = suggestion;
+        datalist.appendChild(option);
+    });
+    nameInput.setAttribute('list', 'folder-suggestions');
+    nameInput.parentNode.appendChild(datalist);
+});
+</script>
+
+<style>
+.folder-preview {
+    transition: all 0.3s ease;
+}
+
+.is-valid {
+    border-color: #28a745;
+}
+
+.is-invalid {
+    border-color: #dc3545;
+}
+
+.invalid-feedback {
+    color: #dc3545;
+    font-size: 0.875em;
+    margin-top: 0.25rem;
+}
+
+#folder-preview {
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 768px) {
+    .tips-card .row {
+        flex-direction: column;
+    }
+    
+    .tips-card .col-md-6 {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+{% endblock %}

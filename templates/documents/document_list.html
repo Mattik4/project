@@ -1,0 +1,455 @@
+{% extends 'base.html' %}
+
+{% block title %}Dokumenty - Document Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="bi bi-files me-2"></i>Moje dokumenty
+            </h1>
+            <a href="{% url 'documents:document_upload' %}" class="btn btn-primary">
+                <i class="bi bi-upload me-2"></i>Dodaj dokument
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Wyszukaj</label>
+                        <input type="text" name="search" class="form-control" placeholder="Szukaj w nazwach, opisach..." value="{{ search_query }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Folder</label>
+                        <select name="folder" class="form-control">
+                            <option value="">Wszystkie foldery</option>
+                            {% for folder in folders %}
+                                <option value="{{ folder.id }}" {% if selected_folder == folder.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ folder.get_full_path }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Tag</label>
+                        <select name="tag" class="form-control">
+                            <option value="">Wszystkie tagi</option>
+                            {% for tag in tags %}
+                                <option value="{{ tag.id }}" {% if selected_tag == tag.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ tag.nazwa }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Typ pliku</label>
+                        <select name="file_type" class="form-control">
+                            <option value="">Wszystkie typy</option>
+                            <option value="pdf" {% if selected_file_type == "pdf" %}selected{% endif %}>PDF</option>
+                            <option value="word" {% if selected_file_type == "word" %}selected{% endif %}>Word</option>
+                            <option value="excel" {% if selected_file_type == "excel" %}selected{% endif %}>Excel</option>
+                            <option value="text" {% if selected_file_type == "text" %}selected{% endif %}>Tekst</option>
+                            <option value="image" {% if selected_file_type == "image" %}selected{% endif %}>Obrazy</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-outline-primary">
+                                <i class="bi bi-search"></i>
+                            </button>
+                            <a href="{% url 'documents:document_list' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x"></i>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Documents List -->
+{% if page_obj %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <strong>{{ page_obj.paginator.count }}</strong> dokumentów
+                    {% if search_query or selected_folder or selected_tag or selected_file_type %}
+                        (filtrowane)
+                    {% endif %}
+                </span>
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="view" id="grid-view" autocomplete="off" checked>
+                    <label class="btn btn-outline-secondary" for="grid-view">
+                        <i class="bi bi-grid"></i>
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="view" id="list-view" autocomplete="off">
+                    <label class="btn btn-outline-secondary" for="list-view">
+                        <i class="bi bi-list"></i>
+                    </label>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Grid View -->
+                <div id="grid-container" class="row">
+                    {% for document in page_obj %}
+                    <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+                        <div class="card document-card h-100 border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex align-items-start justify-content-between mb-3">
+                                    <i class="{{ document.get_file_icon }} text-primary" style="font-size: 2.5rem;"></i>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="{% url 'documents:document_detail' document.id %}">
+                                                <i class="bi bi-eye me-2"></i>Szczegóły
+                                            </a></li>
+                                            {% if document.download_url %}
+                                                <li><a class="dropdown-item" href="{% url 'documents:document_download' document.id %}">
+                                                    <i class="bi bi-download me-2"></i>Pobierz
+                                                </a></li>
+                                            {% endif %}
+                                            {% if document.can_preview %}
+                                                <li><a class="dropdown-item" href="{% url 'documents:document_preview' document.id %}" target="_blank">
+                                                    <i class="bi bi-eye me-2"></i>Podgląd
+                                                </a></li>
+                                            {% endif %}
+                                            {% if document.wlasciciel == user or user.is_superuser %}
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-warning" href="{% url 'documents:document_edit' document.id %}">
+                                                    <i class="bi bi-pencil me-2"></i>Edytuj
+                                                </a></li>
+                                                <li><a class="dropdown-item text-danger" href="{% url 'documents:document_delete' document.id %}">
+                                                    <i class="bi bi-trash me-2"></i>Usuń
+                                                </a></li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <h6 class="card-title mb-2">
+                                    <a href="{% url 'documents:document_detail' document.id %}" class="text-decoration-none">
+                                        {{ document.nazwa|truncatechars:40 }}
+                                    </a>
+                                </h6>
+                                
+                                <div class="mb-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-folder me-1"></i>{{ document.folder.nazwa|truncatechars:20 }}
+                                    </small>
+                                </div>
+                                
+                                {% if document.opis %}
+                                <p class="card-text small text-muted mb-2">
+                                    {{ document.opis|truncatechars:60 }}
+                                </p>
+                                {% endif %}
+                                
+                                <div class="mb-2">
+                                    {% for tag in document.tagi.all|slice:":3" %}
+                                        <span class="badge me-1" style="background-color: {{ tag.kolor }}; font-size: 0.7em;">
+                                            {{ tag.nazwa }}
+                                        </span>
+                                    {% endfor %}
+                                    {% if document.tagi.count > 3 %}
+                                        <span class="badge bg-secondary" style="font-size: 0.7em;">+{{ document.tagi.count|add:"-3" }}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mt-auto">
+                                    <small class="text-muted">
+                                        {{ document.get_file_size_display }}
+                                    </small>
+                                    <small class="text-muted">
+                                        {{ document.ostatnia_modyfikacja|date:"d.m.Y" }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- List View -->
+                <div id="list-container" class="d-none">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nazwa</th>
+                                    <th>Folder</th>
+                                    <th>Rozmiar</th>
+                                    <th>Ostatnia modyfikacja</th>
+                                    <th>Tagi</th>
+                                    <th>Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for document in page_obj %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="{{ document.get_file_icon }} me-2"></i>
+                                            <div>
+                                                <a href="{% url 'documents:document_detail' document.id %}" class="text-decoration-none fw-medium">
+                                                    {{ document.nazwa|truncatechars:50 }}
+                                                </a>
+                                                {% if document.opis %}
+                                                    <br><small class="text-muted">{{ document.opis|truncatechars:80 }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ document.folder.nazwa }}</span>
+                                    </td>
+                                    <td>{{ document.get_file_size_display }}</td>
+                                    <td>{{ document.ostatnia_modyfikacja|date:"d.m.Y H:i" }}</td>
+                                    <td>
+                                        {% for tag in document.tagi.all|slice:":2" %}
+                                            <span class="badge me-1" style="background-color: {{ tag.kolor }}; font-size: 0.7em;">
+                                                {{ tag.nazwa }}
+                                            </span>
+                                        {% endfor %}
+                                        {% if document.tagi.count > 2 %}
+                                            <span class="badge bg-light text-dark" style="font-size: 0.7em;">+{{ document.tagi.count|add:"-2" }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'documents:document_detail' document.id %}" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            {% if document.download_url %}
+                                                <a href="{% url 'documents:document_download' document.id %}" class="btn btn-outline-success btn-sm">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                            {% endif %}
+                                            {% if document.wlasciciel == user or user.is_superuser %}
+                                                <a href="{% url 'documents:document_edit' document.id %}" class="btn btn-outline-warning btn-sm">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="row mt-4">
+    <div class="col-12">
+        <nav>
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_folder %}&folder={{ selected_folder }}{% endif %}{% if selected_tag %}&tag={{ selected_tag }}{% endif %}{% if selected_file_type %}&file_type={{ selected_file_type }}{% endif %}">Pierwsza</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_folder %}&folder={{ selected_folder }}{% endif %}{% if selected_tag %}&tag={{ selected_tag }}{% endif %}{% if selected_file_type %}&file_type={{ selected_file_type }}{% endif %}">Poprzednia</a>
+                    </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} z {{ page_obj.paginator.num_pages }}</span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_folder %}&folder={{ selected_folder }}{% endif %}{% if selected_tag %}&tag={{ selected_tag }}{% endif %}{% if selected_file_type %}&file_type={{ selected_file_type }}{% endif %}">Następna</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_folder %}&folder={{ selected_folder }}{% endif %}{% if selected_tag %}&tag={{ selected_tag }}{% endif %}{% if selected_file_type %}&file_type={{ selected_file_type }}{% endif %}">Ostatnia</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<!-- Empty state -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                {% if search_query or selected_folder or selected_tag or selected_file_type %}
+                    <i class="bi bi-search display-1 text-muted mb-4"></i>
+                    <h3 class="text-muted">Brak wyników wyszukiwania</h3>
+                    <p class="text-muted mb-4">
+                        Nie znaleziono dokumentów spełniających kryteria wyszukiwania.
+                        Spróbuj zmienić filtry lub wyszukaj czegoś innego.
+                    </p>
+                    <a href="{% url 'documents:document_list' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Wyczyść filtry
+                    </a>
+                {% else %}
+                    <i class="bi bi-file-earmark-plus display-1 text-muted mb-4"></i>
+                    <h3 class="text-muted">Brak dokumentów</h3>
+                    <p class="text-muted mb-4">
+                        Nie masz jeszcze żadnych dokumentów. Zacznij od dodania pierwszego dokumentu.
+                    </p>
+                    <a href="{% url 'documents:document_upload' %}" class="btn btn-primary">
+                        <i class="bi bi-upload me-2"></i>Dodaj pierwszy dokument
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const gridView = document.getElementById('grid-view');
+    const listView = document.getElementById('list-view');
+    const gridContainer = document.getElementById('grid-container');
+    const listContainer = document.getElementById('list-container');
+    
+    // View switching
+    gridView.addEventListener('change', function() {
+        if (this.checked) {
+            gridContainer.classList.remove('d-none');
+            listContainer.classList.add('d-none');
+            localStorage.setItem('documents_view', 'grid');
+        }
+    });
+    
+    listView.addEventListener('change', function() {
+        if (this.checked) {
+            gridContainer.classList.add('d-none');
+            listContainer.classList.remove('d-none');
+            localStorage.setItem('documents_view', 'list');
+        }
+    });
+    
+    // Remember view preference
+    const savedView = localStorage.getItem('documents_view');
+    if (savedView === 'list') {
+        listView.checked = true;
+        listView.dispatchEvent(new Event('change'));
+    }
+    
+    // Enhanced card hover effects
+    const documentCards = document.querySelectorAll('.document-card');
+    documentCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+            this.style.transition = 'transform 0.2s ease';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+    
+    // Auto-submit search form on filter change
+    const filterSelects = document.querySelectorAll('select[name="folder"], select[name="tag"], select[name="file_type"]');
+    filterSelects.forEach(select => {
+        select.addEventListener('change', function() {
+            this.closest('form').submit();
+        });
+    });
+    
+    // Search input enter key
+    const searchInput = document.querySelector('input[name="search"]');
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            this.closest('form').submit();
+        }
+    });
+    
+    // Confirm delete actions
+    const deleteLinks = document.querySelectorAll('a[href*="/delete/"]');
+    deleteLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (!confirm('Czy na pewno chcesz usunąć ten dokument?')) {
+                e.preventDefault();
+            }
+        });
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+K or Cmd+K for search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            searchInput.focus();
+        }
+        
+        // Ctrl+N or Cmd+N for new document
+        if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+            e.preventDefault();
+            window.location.href = "{% url 'documents:document_upload' %}";
+        }
+    });
+});
+</script>
+
+<style>
+.document-card {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.document-card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .document-card {
+        margin-bottom: 1rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .btn-group .btn {
+        font-size: 0.75rem;
+    }
+}
+</style>
+{% endblock %}

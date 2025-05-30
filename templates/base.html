@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Document Manager{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+        .main-content {
+            min-height: 100vh;
+        }
+        .document-card:hover {
+            transform: translateY(-2px);
+            transition: all 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'documents:home' %}">
+                <i class="bi bi-file-earmark-text me-2"></i>Document Manager
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'documents:home' %}">
+                            <i class="bi bi-house"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'documents:document_list' %}">
+                            <i class="bi bi-files"></i> Dokumenty
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'documents:folder_list' %}">
+                            <i class="bi bi-folder"></i> Foldery
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-person-circle"></i> 
+                                {{ user.get_full_name|default:user.email }}
+                                {% if user.profile.rola %}
+                                    <span class="badge bg-secondary ms-1">{{ user.profile.rola.get_nazwa_display }}</span>
+                                {% endif %}
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <h6 class="dropdown-header">
+                                        <i class="bi bi-person me-1"></i>{{ user.get_full_name|default:user.email }}
+                                        {% if user.profile.stanowisko %}
+                                            <br><small class="text-muted">{{ user.profile.stanowisko }}</small>
+                                        {% endif %}
+                                    </h6>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'users:password_change' %}">
+                                    <i class="bi bi-key me-2"></i>Zmień hasło
+                                </a></li>
+                                {% if user.is_superuser or user.profile.is_admin %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{% url 'admin:index' %}">
+                                        <i class="bi bi-gear me-2"></i>Panel Admin
+                                    </a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="post" action="{% url 'users:logout' %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="dropdown-item text-danger">
+                                            <i class="bi bi-box-arrow-right me-2"></i>Wyloguj
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'users:login' %}">
+                                <i class="bi bi-box-arrow-in-right"></i> Zaloguj
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 px-0 sidebar">
+                <div class="p-3">
+                    {% if user.is_authenticated %}
+                        <!-- User Info -->
+                        <div class="text-center mb-3 pb-3 border-bottom">
+                            {% if user.profile.avatar %}
+                                <img src="{{ user.profile.avatar.url }}" alt="Avatar" class="rounded-circle mb-2" width="50" height="50">
+                            {% else %}
+                                <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                                    <i class="bi bi-person-fill text-white"></i>
+                                </div>
+                            {% endif %}
+                            <div class="small">
+                                <strong>{{ user.get_full_name|default:user.email }}</strong>
+                                {% if user.profile.rola %}
+                                    <br><span class="text-muted">{{ user.profile.rola.get_nazwa_display }}</span>
+                                {% endif %}
+                                {% if user.profile.stanowisko %}
+                                    <br><span class="text-muted small">{{ user.profile.stanowisko }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <h6 class="text-muted">SZYBKIE AKCJE</h6>
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'documents:document_upload' %}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-upload"></i> Dodaj dokument
+                            </a>
+                            <a href="{% url 'documents:folder_create' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-folder-plus"></i> Nowy folder
+                            </a>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6 class="text-muted">NAWIGACJA</h6>
+                        <nav class="nav nav-pills flex-column">
+                            <a class="nav-link" href="{% url 'documents:document_list' %}">
+                                <i class="bi bi-files"></i> Wszystkie dokumenty
+                            </a>
+                            <a class="nav-link" href="{% url 'documents:folder_list' %}">
+                                <i class="bi bi-folder"></i> Struktura folderów
+                            </a>
+                        </nav>
+                        
+                        {% if user.is_superuser or user.profile.is_admin %}
+                            <hr>
+                            <h6 class="text-muted">ADMINISTRACJA</h6>
+                            <nav class="nav nav-pills flex-column">
+                                <a class="nav-link" href="{% url 'admin:index' %}">
+                                    <i class="bi bi-gear"></i> Panel Admin
+                                </a>
+                            </nav>
+                        {% endif %}
+                    {% else %}
+                        <!-- Not logged in -->
+                        <div class="text-center mb-4">
+                            <i class="bi bi-file-earmark-text display-4 text-muted"></i>
+                            <h6 class="mt-2">Document Manager</h6>
+                            <p class="small text-muted">Zaloguj się aby uzyskać dostęp</p>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'users:login' %}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-box-arrow-in-right"></i> Zaloguj się
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Main content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <div class="p-4">
+                    <!-- Messages -->
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <!-- Page content -->
+                    {% block content %}
+                    {% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_js %}
+    {% endblock %}
+</body>
+</html>

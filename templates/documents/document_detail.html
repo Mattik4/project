@@ -1,0 +1,321 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ document.nazwa }} - Document Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="{{ document.get_file_icon }} me-2"></i>{{ document.nazwa }}
+                </h5>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% if can_download %}
+                            <li><a class="dropdown-item" href="{% url 'documents:document_download' document.id %}">
+                                <i class="bi bi-download me-2"></i>Pobierz
+                            </a></li>
+                            {% if document.can_preview %}
+                                <li><a class="dropdown-item" href="{% url 'documents:document_preview' document.id %}" target="_blank">
+                                    <i class="bi bi-eye me-2"></i>Podgląd
+                                </a></li>
+                            {% endif %}
+                        {% endif %}
+                        {% if can_edit %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'documents:document_edit' document.id %}">
+                                <i class="bi bi-pencil me-2"></i>Edytuj
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'documents:document_version_upload' document.id %}">
+                                <i class="bi bi-plus-circle me-2"></i>Nowa wersja
+                            </a></li>
+                        {% endif %}
+                        {% if can_delete %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{% url 'documents:document_delete' document.id %}">
+                                <i class="bi bi-trash me-2"></i>Usuń
+                            </a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Document Info -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Rozmiar:</dt>
+                            <dd class="col-sm-8">{{ document.get_file_size_display }}</dd>
+                            
+                            <dt class="col-sm-4">Typ pliku:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-secondary">{{ document.get_file_extension|upper }}</span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8">
+                                {% if document.status == 'published' %}
+                                    <span class="badge bg-success">Opublikowany</span>
+                                {% elif document.status == 'draft' %}
+                                    <span class="badge bg-warning">Szkic</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Zarchiwizowany</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Właściciel:</dt>
+                            <dd class="col-sm-8">{{ document.wlasciciel.get_full_name|default:document.wlasciciel.email }}</dd>
+                            
+                            <dt class="col-sm-4">Folder:</dt>
+                            <dd class="col-sm-8">
+                                <i class="bi bi-folder me-1"></i>{{ document.folder.get_full_path }}
+                            </dd>
+                            
+                            <dt class="col-sm-4">Utworzono:</dt>
+                            <dd class="col-sm-8">{{ document.data_utworzenia|date:"d.m.Y H:i" }}</dd>
+                            
+                            <dt class="col-sm-4">Modyfikowano:</dt>
+                            <dd class="col-sm-8">{{ document.ostatnia_modyfikacja|date:"d.m.Y H:i" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                {% if document.opis %}
+                <div class="mb-4">
+                    <h6>Opis:</h6>
+                    <p class="text-muted">{{ document.opis|linebreaks }}</p>
+                </div>
+                {% endif %}
+                
+                <!-- Tags -->
+                {% if document.tagi.all %}
+                <div class="mb-4">
+                    <h6>Tagi:</h6>
+                    {% for tag in document.tagi.all %}
+                        <span class="badge me-2" style="background-color: {{ tag.kolor }};">{{ tag.nazwa }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Quick Actions -->
+                <div class="d-flex gap-2 mb-4">
+                    {% if can_download %}
+                        <a href="{% url 'documents:document_download' document.id %}" class="btn btn-primary">
+                            <i class="bi bi-download me-2"></i>Pobierz
+                        </a>
+                        {% if document.can_preview %}
+                            <a href="{% url 'documents:document_preview' document.id %}" target="_blank" class="btn btn-outline-primary">
+                                <i class="bi bi-eye me-2"></i>Podgląd
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                    {% if can_edit %}
+                        <a href="{% url 'documents:document_edit' document.id %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-pencil me-2"></i>Edytuj
+                        </a>
+                    {% endif %}
+                </div>
+                
+                <!-- Image Preview -->
+                {% if document.is_image and document.plik %}
+                <div class="mb-4">
+                    <h6>Podgląd:</h6>
+                    <div class="text-center">
+                        <img src="{% url 'documents:document_preview' document.id %}" 
+                             alt="{{ document.nazwa }}" 
+                             class="img-fluid rounded border"
+                             style="max-height: 400px;">
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Comments Section -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-chat-left-text me-2"></i>Komentarze ({{ comments.count }})
+                </h6>
+            </div>
+            <div class="card-body">
+                {% for comment in comments %}
+                <div class="d-flex mb-3">
+                    <div class="flex-shrink-0">
+                        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" 
+                             style="width: 40px; height: 40px;">
+                            <i class="bi bi-person-fill text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <div class="fw-bold">{{ comment.uzytkownik.get_full_name|default:comment.uzytkownik.email }}</div>
+                        <div class="text-muted small">{{ comment.data_utworzenia|date:"d.m.Y H:i" }}</div>
+                        <div class="mt-2">{{ comment.tresc|linebreaks }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center py-3">Brak komentarzy. Dodaj pierwszy komentarz!</p>
+                {% endfor %}
+                
+                {% if user.is_authenticated %}
+                <hr>
+                <form method="post" action="#comments">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <textarea name="tresc" class="form-control" rows="3" placeholder="Dodaj komentarz..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-chat-left-text me-2"></i>Dodaj komentarz
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Versions -->
+        {% if versions %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-clock-history me-2"></i>Historia wersji
+                </h6>
+            </div>
+            <div class="card-body">
+                {% for version in versions %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>v{{ version.numer_wersji }}</strong>
+                        {% if version.numer_wersji == versions.first.numer_wersji %}
+                            <span class="badge bg-primary ms-2">Aktualna</span>
+                        {% endif %}
+                        <br>
+                        <small class="text-muted">
+                            {{ version.data_utworzenia|date:"d.m.Y H:i" }}<br>
+                            {{ version.utworzony_przez.get_full_name|default:version.utworzony_przez.email }}
+                        </small>
+                        {% if version.komentarz %}
+                            <br><small class="text-info">{{ version.komentarz }}</small>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if version.plik %}
+                            <a href="{{ version.plik.url }}" class="btn btn-outline-primary btn-sm" title="Pobierz tę wersję">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if not forloop.last %}<hr>{% endif %}
+                {% endfor %}
+                
+                {% if can_edit %}
+                <div class="mt-3">
+                    <a href="{% url 'documents:document_version_upload' document.id %}" class="btn btn-outline-success btn-sm w-100">
+                        <i class="bi bi-plus-circle me-2"></i>Dodaj nową wersję
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Metadata -->
+        {% if metadata %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-info-circle me-2"></i>Metadane
+                </h6>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    {% for meta in metadata %}
+                    <dt class="col-sm-6">{{ meta.klucz }}:</dt>
+                    <dd class="col-sm-6">{{ meta.wartosc }}</dd>
+                    {% endfor %}
+                </dl>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Related Documents -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-files me-2"></i>Dokumenty w tym folderze
+                </h6>
+            </div>
+            <div class="card-body">
+                {% for related_doc in document.folder.documents.all|slice:":5" %}
+                    {% if related_doc != document %}
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="{{ related_doc.get_file_icon }} me-2"></i>
+                        <a href="{% url 'documents:document_detail' related_doc.id %}" class="text-decoration-none flex-grow-1">
+                            {{ related_doc.nazwa|truncatechars:30 }}
+                        </a>
+                    </div>
+                    {% endif %}
+                {% empty %}
+                <p class="text-muted text-center">Brak innych dokumentów w tym folderze.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Back Button -->
+<div class="mt-4">
+    <a href="{% url 'documents:document_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Powrót do listy dokumentów
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-refresh page when file operations complete
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('uploaded') === '1') {
+        // Remove the parameter and refresh the page
+        urlParams.delete('uploaded');
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        history.replaceState(null, '', newUrl);
+    }
+    
+    // Confirm delete action
+    const deleteLinks = document.querySelectorAll('a[href*="/delete/"]');
+    deleteLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (!confirm('Czy na pewno chcesz usunąć ten dokument?')) {
+                e.preventDefault();
+            }
+        });
+    });
+    
+    // Enhanced file preview for images
+    const imagePreview = document.querySelector('img[src*="/preview/"]');
+    if (imagePreview) {
+        imagePreview.addEventListener('click', function() {
+            // Open full-size preview in new window
+            window.open(this.src, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+        });
+        
+        // Add cursor pointer style
+        imagePreview.style.cursor = 'pointer';
+        imagePreview.title = 'Kliknij aby otworzyć w nowym oknie';
+    }
+});
+</script>
+{% endblock %}
