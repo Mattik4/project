@@ -192,11 +192,12 @@ class DocumentVersionUploadForm(forms.Form):
 class FolderCreateForm(forms.ModelForm):
     class Meta:
         model = Folder
-        fields = ['nazwa', 'opis', 'rodzic']
+        fields = ['nazwa', 'opis', 'rodzic', 'tagi']  # DODANO 'tagi'
         widgets = {
             'nazwa': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nazwa folderu'}),
             'opis': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Opis folderu (opcjonalny)'}),
             'rodzic': forms.Select(attrs={'class': 'form-control'}),
+            'tagi': forms.CheckboxSelectMultiple(),  # DODANO
         }
     
     def __init__(self, *args, **kwargs):
@@ -336,11 +337,12 @@ class FolderUpdateForm(forms.ModelForm):
     
     class Meta:
         model = Folder
-        fields = ['nazwa', 'opis', 'rodzic']
+        fields = ['nazwa', 'opis', 'rodzic', 'tagi']  # DODANO 'tagi'
         widgets = {
             'nazwa': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nazwa folderu'}),
             'opis': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Opis folderu (opcjonalny)'}),
             'rodzic': forms.Select(attrs={'class': 'form-control'}),
+            'tagi': forms.CheckboxSelectMultiple(),  # DODANO
         }
     
     def __init__(self, *args, **kwargs):

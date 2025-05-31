@@ -206,68 +206,37 @@ DocumentAdmin.actions = [make_documents_published, make_documents_archived]
 
 @admin.register(SystemSettings)
 class SystemSettingsAdmin(admin.ModelAdmin):
-    """System settings administration"""
-    list_display = ['key', 'value', 'category', 'description', 'updated_at']
-    list_filter = ['category', 'created_at', 'updated_at']
-    search_fields = ['key', 'value', 'description']
-    list_editable = ['value']
+    list_display = (
+        'klucz',         # Corrected from 'key'
+        'wartosc',       # Corrected from 'value'
+        'kategoria',     # Corrected from 'category'
+        'opis',          # Corrected from 'description'
+        'data_modyfikacji' # Corrected from 'updated_at'
+    )
+    search_fields = ('klucz', 'wartosc', 'opis', 'kategoria') # Use correct field names
+    list_filter = (
+        'kategoria',     # Corrected from 'category'
+        'data_utworzenia',# Corrected from 'created_at'
+        'data_modyfikacji' # Corrected from 'updated_at'
+    )
+    list_editable = ('wartosc', 'kategoria', 'opis') # Corrected 'value' to 'wartosc'
     
     fieldsets = (
         ('Ustawienie', {
-            'fields': ('key', 'value', 'category')
+            'fields': ('klucz', 'wartosc', 'kategoria', 'opis')
         }),
-        ('Opis', {
-            'fields': ('description',),
-            'classes': ('collapse',)
+        ('Informacje o czasie', {
+            'fields': ('data_utworzenia', 'data_modyfikacji'),
+            'classes': ('collapse',) # Make this section collapsible
         }),
-        ('Daty', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        })
     )
-    
-    readonly_fields = ('created_at', 'updated_at')
-    
-    def get_queryset(self, request):
-        return super().get_queryset(request)
-    
-    def save_model(self, request, obj, form, change):
-        """Save setting and ensure default settings exist"""
-        super().save_model(request, obj, form, change)
-        
-        # Create default settings if they don't exist
-        if not change:  # New setting
-            self.create_default_settings()
-    
-    def create_default_settings(self):
-        """Create default system settings"""
-        default_settings = [
-            {
-                'key': 'CONTACT_EMAIL',
-                'value': 'admin@docmanager.com',
-                'description': 'Email kontaktowy wyświetlany na stronie logowania',
-                'category': 'contact'
-            },
-            {
-                'key': 'COMPANY_NAME',
-                'value': 'Document Manager',
-                'description': 'Nazwa firmy/systemu',
-                'category': 'general'
-            },
-            {
-                'key': 'SUPPORT_EMAIL',
-                'value': 'support@docmanager.com',
-                'description': 'Email do wsparcia technicznego',
-                'category': 'contact'
-            }
-        ]
-        
-        for setting_data in default_settings:
-            SystemSettings.objects.get_or_create(
-                key=setting_data['key'],
-                defaults={
-                    'value': setting_data['value'],
-                    'description': setting_data['description'],
-                    'category': setting_data['category']
-                }
-            )
+    readonly_fields = (
+        'data_utworzenia', # Corrected from 'created_at'
+        'data_modyfikacji'  # Corrected from 'updated_at'
+    )
+
+    # Optional: if you want to ensure 'klucz' is not editable after creation
+    # def get_readonly_fields(self, request, obj=None):
+    #     if obj: # When editing an object
+    #         return self.readonly_fields + ('klucz',)
+    #     return self.readonly_fields

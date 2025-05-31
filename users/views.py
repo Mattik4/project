@@ -8,7 +8,11 @@ from django.views import View
 from django.utils import timezone
 from .models import UserSession
 from .forms import EmailAuthenticationForm, CustomPasswordChangeForm
-
+from users.permissions import (
+user_can_view_document, user_can_edit_document, user_can_delete_document,
+user_can_create_document, user_can_comment_on_document, user_can_share_document,
+user_can_view_folder, user_can_edit_folder, user_can_delete_folder,
+user_can_create_folder)
 
 class CustomLoginView(LoginView):
     """Custom login view with email authentication and session tracking"""

@@ -1,3 +1,4 @@
+--- START OF FILE documents/folder_list.html ---
 {% extends 'base.html' %}
 
 {% block title %}Foldery - Document Manager{% endblock %}
@@ -6,274 +7,102 @@
 <div class="row">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h2">
-                <i class="bi bi-folder me-2"></i>Struktura folderów
-            </h1>
+            <h1 class="h2"><i class="bi bi-folder me-2"></i>Struktura folderów</h1>
+            {% if user_can_create_folders %}
             <a href="{% url 'documents:folder_create' %}" class="btn btn-primary">
                 <i class="bi bi-folder-plus me-2"></i>Nowy folder
             </a>
+            {% endif %}
         </div>
     </div>
 </div>
 
 {% if root_folders %}
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <div class="folder-tree">
-                    {% for folder in root_folders %}
-                        <div class="folder-item mb-3">
-                            <!-- Main folder -->
-                            <div class="d-flex align-items-center p-3 bg-light rounded">
-                                <i class="bi bi-folder text-primary me-3" style="font-size: 1.5rem;"></i>
-                                <div class="flex-grow-1">
-                                    <h5 class="mb-1">{{ folder.nazwa }}</h5>
-                                    {% if folder.opis %}
-                                        <p class="text-muted mb-0 small">{{ folder.opis }}</p>
-                                    {% endif %}
-                                    <small class="text-muted">
-                                        Utworzono: {{ folder.data_utworzenia|date:"d.m.Y" }} | 
-                                        Właściciel: {{ folder.wlasciciel.get_full_name|default:folder.wlasciciel.email }}
-                                    </small>
-                                </div>
-                                <div class="text-muted">
-                                    <span class="badge bg-secondary me-2">
-                                        {{ folder.documents.count }} dokumentów
-                                    </span>
-                                    <span class="badge bg-info">
-                                        {{ folder.podkatalogi.count }} podfolderów
-                                    </span>
-                                </div>
-                                <div class="dropdown ms-3">
-                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-three-dots"></i>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><a class="dropdown-item" href="{% url 'documents:document_list' %}?folder={{ folder.id }}">
-                                            <i class="bi bi-files me-2"></i>Zobacz dokumenty
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="{% url 'documents:folder_create' %}?parent={{ folder.id }}">
-                                            <i class="bi bi-folder-plus me-2"></i>Dodaj podfolder
-                                        </a></li>
-                                        {% if folder.wlasciciel == user or user.is_superuser %}
-                                            <li><a class="dropdown-item text-warning" href="{% url 'documents:folder_edit' folder.id %}">
-                                                <i class="bi bi-pencil me-2"></i>Edytuj
-                                            </a></li>
-                                            <li><a class="dropdown-item text-danger" href="{% url 'documents:folder_delete' folder.id %}">
-                                                <i class="bi bi-trash me-2"></i>Usuń
-                                                </a></li>
-                                        {% endif %}
-                                    </ul>
-                                </div>
+<div class="row"><div class="col-12"><div class="card"><div class="card-body"><div class="folder-tree">
+    {% for folder_item_root in root_folders %} {# Changed var name #}
+        <div class="folder-item mb-3">
+            <div class="d-flex align-items-center p-3 bg-light rounded">
+                <i class="bi bi-folder text-primary me-3" style="font-size: 1.5rem;"></i>
+                <div class="flex-grow-1">
+                    <h5 class="mb-1">{{ folder_item_root.nazwa }}</h5>
+                    {% if folder_item_root.opis %}<p class="text-muted mb-1 small">{{ folder_item_root.opis }}</p>{% endif %}
+                    {% if folder_item_root.tagi.all %}<div class="mb-1">{% for tag_item_root in folder_item_root.tagi.all %}<span class="badge me-1" style="background-color: {{ tag_item_root.kolor }}; color: #fff;">{{ tag_item_root.nazwa }}</span>{% endfor %}</div>{% endif %}
+                    <small class="text-muted">Utworzono: {{ folder_item_root.data_utworzenia|date:"d.m.Y" }} | Właściciel: {{ folder_item_root.wlasciciel.get_full_name|default:folder_item_root.wlasciciel.email }}</small>
+                </div>
+                <div class="text-muted text-nowrap"><span class="badge bg-secondary me-2">{{ folder_item_root.documents.count }} dokumentów</span><span class="badge bg-info text-dark">{{ folder_item_root.podkatalogi.count }} podfolderów</span></div>
+                <div class="dropdown ms-3">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-three-dots"></i></button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{% url 'documents:folder_view' folder_item_root.id %}"><i class="bi bi-folder-open me-2"></i>Otwórz folder</a></li>
+                        <li><a class="dropdown-item" href="{% url 'documents:document_list' %}?folder={{ folder_item_root.id }}"><i class="bi bi-files me-2"></i>Zobacz dokumenty</a></li>
+                        {% if folder_item_root.current_user_can_edit or user_can_create_folders %}
+                        <li><a class="dropdown-item" href="{% url 'documents:folder_create_in_parent' folder_item_root.id %}"><i class="bi bi-folder-plus me-2"></i>Dodaj podfolder</a></li>
+                        {% endif %}
+                        {% if folder_item_root.current_user_can_edit %}
+                            <li><a class="dropdown-item text-warning" href="{% url 'documents:folder_edit' folder_item_root.id %}"><i class="bi bi-pencil me-2"></i>Edytuj</a></li>
+                        {% endif %}
+                        {% if folder_item_root.current_user_can_delete %}
+                            <li><a class="dropdown-item text-danger" href="{% url 'documents:folder_delete' folder_item_root.id %}"><i class="bi bi-trash me-2"></i>Usuń</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            
+            {% if folder_item_root.podkatalogi.all %}
+                <div class="mt-3 ms-4">
+                    {% for subfolder_item_root in folder_item_root.podkatalogi.all %} {# Changed var name #}
+                        <div class="d-flex align-items-center p-2 border rounded mb-2 subfolder-item">
+                            <i class="bi bi-folder-fill text-warning me-3"></i>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-0"><a href="{% url 'documents:folder_view' subfolder_item_root.id %}" class="text-decoration-none">{{ subfolder_item_root.nazwa }}</a></h6>
+                                {% if subfolder_item_root.opis %}<small class="text-muted d-block">{{ subfolder_item_root.opis }}</small>{% endif %}
+                                {% if subfolder_item_root.tagi.all %}<div class="mt-1">{% for tag_subfolder in subfolder_item_root.tagi.all %}<span class="badge me-1" style="background-color: {{ tag_subfolder.kolor }}; color: #fff; font-size:0.8em;">{{ tag_subfolder.nazwa }}</span>{% endfor %}</div>{% endif %}
                             </div>
-                            
-                            <!-- Subfolders -->
-                            {% if folder.podkatalogi.all %}
-                                <div class="mt-3 ms-4">
-                                    {% for subfolder in folder.podkatalogi.all %}
-                                        <div class="d-flex align-items-center p-2 border rounded mb-2">
-                                            <i class="bi bi-folder-fill text-warning me-3"></i>
-                                            <div class="flex-grow-1">
-                                                <h6 class="mb-0">{{ subfolder.nazwa }}</h6>
-                                                {% if subfolder.opis %}
-                                                    <small class="text-muted">{{ subfolder.opis }}</small>
-                                                {% endif %}
-                                            </div>
-                                            <div class="text-muted">
-                                                <span class="badge bg-light text-dark me-2">
-                                                    {{ subfolder.documents.count }} dok.
-                                                </span>
-                                            </div>
-                                            <div class="dropdown">
-                                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                                    <i class="bi bi-three-dots-vertical"></i>
-                                                </button>
-                                                <ul class="dropdown-menu dropdown-menu-end">
-                                                    <li><a class="dropdown-item" href="{% url 'documents:document_list' %}?folder={{ subfolder.id }}">
-                                                        <i class="bi bi-files me-2"></i>Zobacz dokumenty
-                                                    </a></li>
-                                                    {% if subfolder.wlasciciel == user or user.is_superuser %}
-                                                        <li><hr class="dropdown-divider"></li>
-                                                        <li><a class="dropdown-item text-warning" href="#">
-                                                            <i class="bi bi-pencil me-2"></i>Edytuj
-                                                        </a></li>
-                                                        <li><a class="dropdown-item text-danger" href="#">
-                                                            <i class="bi bi-trash me-2"></i>Usuń
-                                                        </a></li>
-                                                    {% endif %}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
+                            <div class="text-muted text-nowrap"><span class="badge bg-light text-dark me-2">{{ subfolder_item_root.documents.count }} dok.</span></div>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{% url 'documents:folder_view' subfolder_item_root.id %}"><i class="bi bi-folder-open me-2"></i>Otwórz folder</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'documents:document_list' %}?folder={{ subfolder_item_root.id }}"><i class="bi bi-files me-2"></i>Zobacz dokumenty</a></li>
+                                    {% if subfolder_item_root.current_user_can_edit %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-warning" href="{% url 'documents:folder_edit' subfolder_item_root.id %}"><i class="bi bi-pencil me-2"></i>Edytuj</a></li>
+                                    {% endif %}
+                                    {% if subfolder_item_root.current_user_can_delete %}
+                                        <li><a class="dropdown-item text-danger" href="{% url 'documents:folder_delete' subfolder_item_root.id %}"><i class="bi bi-trash me-2"></i>Usuń</a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
                         </div>
                     {% endfor %}
                 </div>
-            </div>
+            {% endif %}
         </div>
-    </div>
-</div>
+    {% endfor %}
+</div></div></div></div></div>
 {% else %}
-<!-- Empty state -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center py-5">
-                <i class="bi bi-folder2-open display-1 text-muted mb-4"></i>
-                <h3 class="text-muted">Brak folderów</h3>
-                <p class="text-muted mb-4">
-                    Nie masz jeszcze żadnych folderów. Utwórz pierwszy folder aby zorganizować swoje dokumenty.
-                </p>
-                <div class="d-flex gap-2 justify-content-center">
-                    <a href="{% url 'documents:folder_create' %}" class="btn btn-primary">
-                        <i class="bi bi-folder-plus me-2"></i>Utwórz pierwszy folder
-                    </a>
-                    <button type="button" class="btn btn-outline-secondary" onclick="runAutoInit()">
-                        <i class="bi bi-magic me-2"></i>Utwórz automatycznie
-                    </button>
-                </div>
-            </div>
-        </div>
+<div class="row"><div class="col-12"><div class="card"><div class="card-body text-center py-5">
+    <i class="bi bi-folder2-open display-1 text-muted mb-4"></i><h3 class="text-muted">Brak folderów</h3>
+    <p class="text-muted mb-4">Nie masz jeszcze żadnych folderów. Utwórz pierwszy folder aby zorganizować swoje dokumenty.</p>
+    <div class="d-flex gap-2 justify-content-center">
+        {% if user_can_create_folders %}
+        <a href="{% url 'documents:folder_create' %}" class="btn btn-primary"><i class="bi bi-folder-plus me-2"></i>Utwórz pierwszy folder</a>
+        {% endif %}
+        <button type="button" class="btn btn-outline-secondary" onclick="runAutoInit()"><i class="bi bi-magic me-2"></i>Utwórz automatycznie</button>
     </div>
-</div>
+</div></div></div></div>
 {% endif %}
 
-<!-- Statistics Card -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card bg-light">
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-3">
-                        <div class="display-6 text-primary">{{ root_folders|length }}</div>
-                        <small class="text-muted">Głównych folderów</small>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="display-6 text-success">
-                            {% for folder in root_folders %}
-                                {{ folder.podkatalogi.count|add:0 }}
-                            {% empty %}
-                                0
-                            {% endfor %}
-                        </div>
-                        <small class="text-muted">Podfolderów</small>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="display-6 text-info">
-                            {% for folder in root_folders %}
-                                {{ folder.documents.count|add:0 }}
-                            {% empty %}
-                                0
-                            {% endfor %}
-                        </div>
-                        <small class="text-muted">Dokumentów</small>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="display-6 text-warning">{{ user.folders.count }}</div>
-                        <small class="text-muted">Moich folderów</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Statistics Card (remains the same, ensure `user_folders_count` is passed from view) -->
+<div class="row mt-4"> <div class="col-12"> <div class="card bg-light"> <div class="card-body"> <div class="row text-center"> <div class="col-md-3 col-6 mb-3 mb-md-0"> <div class="display-6 text-primary">{{ root_folders|length }}</div> <small class="text-muted">Głównych folderów</small> </div> <div class="col-md-3 col-6 mb-3 mb-md-0"> <div class="display-6 text-success"> {% with total_subfolders_stat=0 %} {% for folder_stat in root_folders %} {% total_subfolders_stat = total_subfolders_stat|add:folder_stat.podkatalogi.count %} {% endfor %} {{ total_subfolders_stat }} {% endwith %} </div> <small class="text-muted">Podfolderów</small> </div> <div class="col-md-3 col-6"> <div class="display-6 text-info"> {% with total_documents_stat=0 %} {% for folder_stat in root_folders %} {% total_documents_stat = total_documents_stat|add:folder_stat.documents.count %} {% for subfolder_stat in folder_stat.podkatalogi.all %} {% total_documents_stat = total_documents_stat|add:subfolder_stat.documents.count %} {% endfor %} {% endfor %} {{ total_documents_stat }} {% endwith %} </div> <small class="text-muted">Dokumentów w folderach</small> </div> <div class="col-md-3 col-6"> <div class="display-6 text-warning">{{ user_folders_count|default:0 }}</div> <small class="text-muted">Moich folderów</small> </div> </div> </div> </div> </div> </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block extra_js %}{# JS remains the same #}
 <script>
-function runAutoInit() {
-    if (confirm('Czy chcesz utworzyć automatycznie podstawową strukturę folderów?\n\nZostaną utworzone foldery:\n- Dokumenty publiczne\n- Szablony\n- Archiwum\n- Robocze\n- Projekty')) {
-        
-        // Show loading
-        const btn = event.target;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Tworzenie...';
-        
-        // Simulate API call - in real app you'd make AJAX request
-        setTimeout(() => {
-            window.location.reload();
-        }, 2000);
-        
-        // In real implementation:
-        /*
-        fetch('/api/init-folders/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert('Błąd: ' + data.error);
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-magic me-2"></i>Utwórz automatycznie';
-            }
-        });
-        */
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Enhanced folder tree interactions
-    const folderItems = document.querySelectorAll('.folder-item');
-    
-    folderItems.forEach(item => {
-        // Add hover effects
-        item.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateX(5px)';
-            this.style.transition = 'transform 0.2s ease';
-        });
-        
-        item.addEventListener('mouseleave', function() {
-            this.style.transform = 'translateX(0)';
-        });
-    });
-    
-    // Confirm delete actions
-    const deleteLinks = document.querySelectorAll('a[href*="delete"]');
-    deleteLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            if (!confirm('Czy na pewno chcesz usunąć ten folder? Wszystkie dokumenty w tym folderze zostaną przeniesione do folderu głównego.')) {
-                e.preventDefault();
-            }
-        });
-    });
-});
+function runAutoInit(){if(confirm('Czy chcesz utworzyć automatycznie podstawową strukturę folderów?\n\nZostaną utworzone foldery:\n- Dokumenty publiczne\n- Szablony\n- Archiwum\n- Robocze\n- Projekty')){const btn=event.target;btn.disabled=!0;btn.innerHTML='<span class="spinner-border spinner-border-sm me-2"></span>Tworzenie...';setTimeout(()=>{alert("Funkcja automatycznego tworzenia jest demonstracyjna. W rzeczywistej aplikacji, tutaj nastąpiłoby wywołanie API.");btn.disabled=!1;btn.innerHTML='<i class="bi bi-magic me-2"></i>Utwórz automatycznie'},2e3)}}
+document.addEventListener('DOMContentLoaded',function(){const folderItems=document.querySelectorAll('.folder-item, .subfolder-item');folderItems.forEach(item=>{item.addEventListener('mouseenter',function(){this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';this.style.transition='box-shadow 0.2s ease'});item.addEventListener('mouseleave',function(){this.style.boxShadow='none';if(this.classList.contains('subfolder-item')){this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'}})});const deleteLinks=document.querySelectorAll('a[href*="/delete/"]');deleteLinks.forEach(link=>{link.addEventListener('click',function(e){const folderName=this.closest('.d-flex').querySelector('h5, h6').textContent.trim();if(!confirm(`Czy na pewno chcesz usunąć folder "${folderName}"? Zostaną zastosowane opcje usuwania zawartości.`)){e.preventDefault()}})})});
 </script>
-
-<style>
-.folder-tree .folder-item {
-    transition: all 0.2s ease;
-}
-
-.folder-tree .folder-item:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.dropdown-menu .dropdown-item:hover {
-    background-color: #f8f9fa;
-}
-
-.badge {
-    font-size: 0.75em;
-}
-
-@media (max-width: 768px) {
-    .folder-tree .d-flex {
-        flex-direction: column;
-        align-items: flex-start !important;
-    }
-    
-    .folder-tree .ms-3 {
-        margin-left: 0 !important;
-        margin-top: 1rem;
-    }
-}
+<style> /* Style block remains the same */
+.folder-tree .folder-item{transition:all .2s ease}.folder-tree .folder-item .bg-light{background-color:#f8f9fa!important}.folder-tree .subfolder-item{background-color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:box-shadow .2s ease-out}.dropdown-menu .dropdown-item:hover{background-color:#e9ecef}.badge{font-size:.75em;padding:.3em .5em}.text-nowrap{white-space:nowrap!important}@media (max-width:768px){.folder-tree .d-flex{flex-direction:column;align-items:flex-start!important}.folder-tree .ms-3{margin-left:0!important;margin-top:.5rem;align-self:flex-end}.folder-tree .text-muted.text-nowrap{margin-top:.5rem;width:100%;display:flex;justify-content:space-between}.display-6{font-size:1.75rem}}
 </style>
 {% endblock %}

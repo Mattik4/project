@@ -28,6 +28,4 @@ urlpatterns = [
     
     # Search and API
     path('search/', views.search_documents, name='search_documents'),
-    path('api/contact-email/', views.contact_email_api, name='contact_email_api'),
-    path('api/stats/', views.document_stats, name='document_stats'),
 ]
