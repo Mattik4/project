@@ -15,12 +15,12 @@ from guardian.shortcuts import get_objects_for_user, assign_perm
 from .models import Document, Folder, Tag, SystemSettings, DocumentVersion, ActivityLog
 from .forms import (
     DocumentUploadForm, FolderCreateForm, DocumentUpdateForm, 
-    DocumentVersionUploadForm
+    DocumentVersionUploadForm, FolderUpdateForm, FolderDeleteForm
 )
 from users.models import UserProfile
 from users.permissions import (
     user_can_view_document, user_can_edit_document, 
-    user_can_delete_document, user_can_view_folder
+    user_can_delete_document, user_can_view_folder, user_can_manage_folder
 )
 import os
 import mimetypes
@@ -394,7 +394,6 @@ def document_version_upload(request, pk):
     return render(request, 'documents/document_version_upload.html', context)
 
 
-# Rest of the views remain the same as before...
 @login_required
 def folder_list(request):
     """List all folders in tree structure"""
@@ -432,6 +431,124 @@ def folder_create(request):
     
     context = {'form': form}
     return render(request, 'documents/folder_create.html', context)
+
+
+@login_required
+def folder_edit(request, pk):
+    """Edit folder metadata"""
+    folder = get_object_or_404(Folder, pk=pk)
+    
+    # Check permissions
+    if not user_can_manage_folder(request.user, folder):
+        raise PermissionDenied("Nie masz uprawnień do edycji tego folderu.")
+    
+    if request.method == 'POST':
+        form = FolderUpdateForm(request.POST, instance=folder, user=request.user)
+        if form.is_valid():
+            form.save()
+            
+            # Log edit activity
+            ActivityLog.objects.create(
+                uzytkownik=request.user,
+                typ_aktywnosci='edycja',
+                folder=folder,
+                szczegoly=f"Edytowano folder {folder.nazwa}",
+                adres_ip=get_client_ip(request)
+            )
+            
+            messages.success(request, f'Folder "{folder.nazwa}" został zaktualizowany.')
+            return redirect('documents:folder_list')
+    else:
+        form = FolderUpdateForm(instance=folder, user=request.user)
+    
+    context = {
+        'form': form,
+        'folder': folder,
+    }
+    return render(request, 'documents/folder_edit.html', context)
+
+
+@login_required
+def folder_delete(request, pk):
+    """Delete folder with options for handling contents"""
+    folder = get_object_or_404(Folder, pk=pk)
+    
+    # Check permissions
+    if not user_can_manage_folder(request.user, folder):
+        raise PermissionDenied("Nie masz uprawnień do usunięcia tego folderu.")
+    
+    # Get folder contents for display
+    documents_count = folder.documents.filter(usunieto=False).count()
+    subfolders_count = folder.podkatalogi.count()
+    
+    if request.method == 'POST':
+        form = FolderDeleteForm(request.POST, user=request.user, folder=folder)
+        if form.is_valid():
+            action = form.cleaned_data['action']
+            target_folder = form.cleaned_data.get('target_folder')
+            
+            folder_name = folder.nazwa
+            
+            try:
+                # Handle folder contents based on selected action
+                if action == 'move_to_parent':
+                    # Move contents to parent folder
+                    parent_folder = folder.rodzic
+                    
+                    # Move documents
+                    moved_docs = folder.documents.filter(usunieto=False).update(folder=parent_folder)
+                    
+                    # Move subfolders
+                    moved_folders = folder.podkatalogi.update(rodzic=parent_folder)
+                    
+                    details = f"Usunięto folder {folder_name}. Przeniesiono {moved_docs} dokumentów i {moved_folders} podfolderów do folderu nadrzędnego."
+                
+                elif action == 'move_to_folder':
+                    # Move contents to specified folder
+                    
+                    # Move documents
+                    moved_docs = folder.documents.filter(usunieto=False).update(folder=target_folder)
+                    
+                    # Move subfolders
+                    moved_folders = folder.podkatalogi.update(rodzic=target_folder)
+                    
+                    details = f"Usunięto folder {folder_name}. Przeniesiono {moved_docs} dokumentów i {moved_folders} podfolderów do folderu {target_folder.nazwa}."
+                
+                elif action == 'delete_all':
+                    # Delete all contents (cascade delete will handle this)
+                    # First, mark documents as deleted (soft delete)
+                    deleted_docs = folder.documents.filter(usunieto=False).count()
+                    folder.documents.filter(usunieto=False).update(usunieto=True)
+                    
+                    # Subfolders will be deleted by cascade
+                    details = f"Usunięto folder {folder_name} wraz z {deleted_docs} dokumentami i {subfolders_count} podfolderami."
+                
+                # Log deletion activity before deleting the folder
+                ActivityLog.objects.create(
+                    uzytkownik=request.user,
+                    typ_aktywnosci='usuniecie',
+                    szczegoly=details,
+                    adres_ip=get_client_ip(request)
+                )
+                
+                # Delete the folder
+                folder.delete()
+                
+                messages.success(request, f'Folder "{folder_name}" został usunięty.')
+                return redirect('documents:folder_list')
+                
+            except Exception as e:
+                messages.error(request, f'Błąd podczas usuwania folderu: {str(e)}')
+    else:
+        form = FolderDeleteForm(user=request.user, folder=folder)
+    
+    context = {
+        'folder': folder,
+        'form': form,
+        'documents_count': documents_count,
+        'subfolders_count': subfolders_count,
+    }
+    return render(request, 'documents/folder_delete.html', context)
 
 
 @login_required

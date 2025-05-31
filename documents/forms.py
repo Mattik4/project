@@ -330,3 +330,142 @@ class BulkActionForm(forms.Form):
                 self.fields['target_folder'].queryset = Folder.objects.all()
             else:
                 self.fields['target_folder'].queryset = Folder.objects.filter(wlasciciel=user)
+
+class FolderUpdateForm(forms.ModelForm):
+    """Form for updating folder metadata"""
+    
+    class Meta:
+        model = Folder
+        fields = ['nazwa', 'opis', 'rodzic']
+        widgets = {
+            'nazwa': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nazwa folderu'}),
+            'opis': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Opis folderu (opcjonalny)'}),
+            'rodzic': forms.Select(attrs={'class': 'form-control'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        instance = kwargs.get('instance')
+        super().__init__(*args, **kwargs)
+        
+        if user:
+            # Show folders user can access, but exclude current folder and its children to prevent circular references
+            if user.is_superuser or (hasattr(user, 'profile') and user.profile.is_admin):
+                queryset = Folder.objects.all()
+            else:
+                queryset = Folder.objects.filter(wlasciciel=user)
+            
+            # Exclude current folder and its descendants to prevent circular references
+            if instance:
+                descendants = self._get_descendants(instance)
+                exclude_ids = [instance.id] + list(descendants.values_list('id', flat=True))
+                queryset = queryset.exclude(id__in=exclude_ids)
+            
+            self.fields['rodzic'].queryset = queryset
+            self.fields['rodzic'].empty_label = "Folder główny"
+    
+    def _get_descendants(self, folder):
+        """Get all descendants of a folder to prevent circular references"""
+        descendants = Folder.objects.filter(rodzic=folder)
+        all_descendants = descendants
+        
+        for descendant in descendants:
+            all_descendants = all_descendants | self._get_descendants(descendant)
+        
+        return all_descendants
+    
+    def clean_nazwa(self):
+        """Validate folder name"""
+        nazwa = self.cleaned_data.get('nazwa', '').strip()
+        
+        if not nazwa:
+            raise ValidationError("Nazwa folderu jest wymagana.")
+        
+        if len(nazwa) > 255:
+            raise ValidationError("Nazwa folderu nie może być dłuższa niż 255 znaków.")
+        
+        # Check for dangerous characters
+        dangerous_chars = ['<', '>', ':', '"', '|', '?', '*', '\\', '/']
+        for char in dangerous_chars:
+            if char in nazwa:
+                raise ValidationError(f"Nazwa nie może zawierać znaku: {char}")
+        
+        return nazwa
+
+
+class FolderDeleteForm(forms.Form):
+    """Form for folder deletion with options for handling contents"""
+    
+    DELETE_CHOICES = [
+        ('move_to_parent', 'Przenieś zawartość do folderu nadrzędnego'),
+        ('move_to_folder', 'Przenieś zawartość do innego folderu'),
+        ('delete_all', 'Usuń folder wraz z całą zawartością'),
+    ]
+    
+    action = forms.ChoiceField(
+        label='Co zrobić z zawartością folderu?',
+        choices=DELETE_CHOICES,
+        initial='move_to_parent',
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'})
+    )
+    
+    target_folder = forms.ModelChoiceField(
+        label='Folder docelowy',
+        queryset=Folder.objects.none(),  # Will be set in __init__
+        required=False,
+        empty_label="Wybierz folder",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    confirm_deletion = forms.BooleanField(
+        label='Potwierdzam, że chcę usunąć ten folder',
+        required=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        folder_to_delete = kwargs.pop('folder', None)
+        super().__init__(*args, **kwargs)
+        
+        if user and folder_to_delete:
+            # Set available target folders (exclude the folder being deleted and its descendants)
+            if user.is_superuser or (hasattr(user, 'profile') and user.profile.is_admin):
+                queryset = Folder.objects.all()
+            else:
+                queryset = Folder.objects.filter(wlasciciel=user)
+            
+            # Exclude the folder being deleted and its descendants
+            descendants = self._get_descendants(folder_to_delete)
+            exclude_ids = [folder_to_delete.id] + list(descendants.values_list('id', flat=True))
+            queryset = queryset.exclude(id__in=exclude_ids)
+            
+            self.fields['target_folder'].queryset = queryset
+            
+            # If folder has no parent, disable "move to parent" option
+            if not folder_to_delete.rodzic:
+                self.fields['action'].choices = [
+                    choice for choice in self.DELETE_CHOICES 
+                    if choice[0] != 'move_to_parent'
+                ]
+                self.fields['action'].initial = 'move_to_folder'
+    
+    def _get_descendants(self, folder):
+        """Get all descendants of a folder"""
+        descendants = Folder.objects.filter(rodzic=folder)
+        all_descendants = descendants
+        
+        for descendant in descendants:
+            all_descendants = all_descendants | self._get_descendants(descendant)
+        
+        return all_descendants
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get('action')
+        target_folder = cleaned_data.get('target_folder')
+        
+        if action == 'move_to_folder' and not target_folder:
+            raise ValidationError("Musisz wybrać folder docelowy dla tej opcji.")
+        
+        return cleaned_data

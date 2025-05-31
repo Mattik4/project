@@ -20,6 +20,8 @@ urlpatterns = [
     # Folders
     path('folders/', views.folder_list, name='folder_list'),
     path('folders/create/', views.folder_create, name='folder_create'),
+    path('folders/<int:pk>/edit/', views.folder_edit, name='folder_edit'),
+    path('folders/<int:pk>/delete/', views.folder_delete, name='folder_delete'),
     
     # Search and API
     path('search/', views.search_documents, name='search_documents'),

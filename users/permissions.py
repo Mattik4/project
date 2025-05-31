@@ -210,3 +210,19 @@ def require_document_permission(permission):
             return view_func(request, *args, **kwargs)
         return wrapper
     return decorator
+
+def user_can_manage_folder(user, folder):
+    """Check if user can manage specific folder"""
+    if not user.is_authenticated:
+        return False
+    
+    # Admin can manage everything
+    if user.is_superuser or (hasattr(user, 'profile') and user.profile.is_admin):
+        return True
+    
+    # Owner can manage own folders
+    if folder.wlasciciel == user:
+        return True
+    
+    # Check Guardian permissions
+    return user.has_perm('manage_folder', folder)

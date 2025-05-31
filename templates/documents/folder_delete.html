@@ -1,0 +1,450 @@
+{% extends 'base.html' %}
+
+{% block title %}Usuń {{ folder.nazwa }} - Document Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Potwierdzenie usunięcia folderu
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <div class="d-flex align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-3 mt-1" style="font-size: 1.5rem;"></i>
+                        <div>
+                            <strong>Uwaga!</strong><br>
+                            Usuwasz folder który może zawierać dokumenty i podfoldery. 
+                            Wybierz co zrobić z zawartością przed kontynuowaniem.
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Folder info -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-folder text-primary me-3" style="font-size: 3rem;"></i>
+                            <div class="flex-grow-1">
+                                <h5 class="mb-1">{{ folder.nazwa }}</h5>
+                                {% if folder.opis %}
+                                    <p class="text-muted mb-2">{{ folder.opis|truncatechars:100 }}</p>
+                                {% endif %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <strong>Ścieżka:</strong> {{ folder.get_full_path }}<br>
+                                            <strong>Właściciel:</strong> {{ folder.wlasciciel.get_full_name|default:folder.wlasciciel.email }}<br>
+                                            <strong>Utworzono:</strong> {{ folder.data_utworzenia|date:"d.m.Y H:i" }}
+                                        </small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted">
+                                            <strong>Dokumenty:</strong> {{ documents_count }}<br>
+                                            <strong>Podfoldery:</strong> {{ subfolders_count }}<br>
+                                            <strong>Łącznie elementów:</strong> {{ documents_count|add:subfolders_count }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contents Preview -->
+                {% if documents_count > 0 or subfolders_count > 0 %}
+                <div class="card bg-light mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="bi bi-list me-2"></i>Zawartość folderu
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% if documents_count > 0 %}
+                            <div class="col-md-6">
+                                <h6 class="text-primary">
+                                    <i class="bi bi-files me-2"></i>Dokumenty ({{ documents_count }})
+                                </h6>
+                                {% for document in folder.documents.all|slice:":5" %}
+                                    <div class="d-flex align-items-center mb-1">
+                                        <i class="{{ document.get_file_icon }} me-2"></i>
+                                        <span class="small">{{ document.nazwa|truncatechars:30 }}</span>
+                                    </div>
+                                {% endfor %}
+                                {% if documents_count > 5 %}
+                                    <small class="text-muted">... i {{ documents_count|add:"-5" }} więcej</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if subfolders_count > 0 %}
+                            <div class="col-md-6">
+                                <h6 class="text-warning">
+                                    <i class="bi bi-folder me-2"></i>Podfoldery ({{ subfolders_count }})
+                                </h6>
+                                {% for subfolder in folder.podkatalogi.all|slice:":5" %}
+                                    <div class="d-flex align-items-center mb-1">
+                                        <i class="bi bi-folder-fill me-2"></i>
+                                        <span class="small">{{ subfolder.nazwa }}</span>
+                                    </div>
+                                {% endfor %}
+                                {% if subfolders_count > 5 %}
+                                    <small class="text-muted">... i {{ subfolders_count|add:"-5" }} więcej</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Deletion Form -->
+                <form method="post" id="delete-form">
+                    {% csrf_token %}
+                    
+                    {% if documents_count > 0 or subfolders_count > 0 %}
+                    <div class="mb-4">
+                        <h6 class="text-danger">
+                            <i class="bi bi-question-circle me-2"></i>Co zrobić z zawartością folderu?
+                        </h6>
+                        
+                        {% for choice in form.action %}
+                            <div class="form-check mb-2">
+                                {{ choice.tag }}
+                                <label class="form-check-label" for="{{ choice.id_for_label }}">
+                                    {{ choice.choice_label }}
+                                    {% if choice.data.value == 'move_to_parent' and folder.rodzic %}
+                                        <small class="text-muted">(do: {{ folder.rodzic.get_full_path }})</small>
+                                    {% elif choice.data.value == 'delete_all' %}
+                                        <small class="text-danger">(NIEODWRACALNE!)</small>
+                                    {% endif %}
+                                </label>
+                            </div>
+                        {% endfor %}
+                        
+                        {% if form.action.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.action.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Target folder selection (shown conditionally) -->
+                    <div class="mb-4" id="target-folder-container" style="display: none;">
+                        <label for="{{ form.target_folder.id_for_label }}" class="form-label">
+                            <strong>Wybierz folder docelowy:</strong>
+                        </label>
+                        {{ form.target_folder }}
+                        {% if form.target_folder.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.target_folder.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Final confirmation -->
+                    <div class="form-check mb-4">
+                        {{ form.confirm_deletion }}
+                        <label class="form-check-label" for="{{ form.confirm_deletion.id_for_label }}">
+                            <strong>{{ form.confirm_deletion.label }}</strong>
+                        </label>
+                        {% if form.confirm_deletion.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.confirm_deletion.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Impact warning -->
+                    <div class="card border-warning mb-4" id="impact-warning" style="display: none;">
+                        <div class="card-body">
+                            <h6 class="card-title text-warning">
+                                <i class="bi bi-exclamation-triangle me-2"></i>Ostrzeżenie o wpływie
+                            </h6>
+                            <p class="card-text small mb-0" id="impact-text">
+                                <!-- Will be populated by JavaScript -->
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Non-field errors -->
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{% url 'documents:folder_list' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-2"></i>Anuluj
+                        </a>
+                        
+                        <button type="submit" class="btn btn-danger" id="delete-btn" disabled>
+                            <i class="bi bi-trash me-2"></i>Usuń folder
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Alternative actions -->
+        <div class="card border-info mt-4">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-lightbulb me-2"></i>Alternatywne działania
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="card-text small mb-3">
+                    Zamiast usuwać folder, rozważ inne opcje:
+                </p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'documents:folder_edit' folder.id %}" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-pencil me-2"></i>Edytuj folder (zmień nazwę lub przenieś)
+                    </a>
+                    {% if documents_count > 0 %}
+                        <a href="{% url 'documents:document_list' %}?folder={{ folder.id }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-files me-2"></i>Zarządzaj dokumentami w folderze
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'documents:folder_list' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-eye me-2"></i>Powrót do listy folderów
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('delete-form');
+    const confirmCheck = document.getElementById('{{ form.confirm_deletion.id_for_label }}');
+    const deleteBtn = document.getElementById('delete-btn');
+    const actionRadios = document.querySelectorAll('input[name="action"]');
+    const targetFolderContainer = document.getElementById('target-folder-container');
+    const targetFolderSelect = document.getElementById('{{ form.target_folder.id_for_label }}');
+    const impactWarning = document.getElementById('impact-warning');
+    const impactText = document.getElementById('impact-text');
+    
+    const documentsCount = {{ documents_count }};
+    const subfoldersCount = {{ subfolders_count }};
+    
+    function updateTargetFolderVisibility() {
+        const selectedAction = document.querySelector('input[name="action"]:checked');
+        if (selectedAction && selectedAction.value === 'move_to_folder') {
+            targetFolderContainer.style.display = 'block';
+        } else {
+            targetFolderContainer.style.display = 'none';
+            targetFolderSelect.value = '';
+        }
+        updateImpactWarning();
+    }
+    
+    function updateImpactWarning() {
+        const selectedAction = document.querySelector('input[name="action"]:checked');
+        if (!selectedAction) {
+            impactWarning.style.display = 'none';
+            return;
+        }
+        
+        let impactMessage = '';
+        
+        switch (selectedAction.value) {
+            case 'move_to_parent':
+                {% if folder.rodzic %}
+                    impactMessage = `Wszystkie dokumenty (${documentsCount}) i podfoldery (${subfoldersCount}) zostaną przeniesione do folderu "{{ folder.rodzic.get_full_path }}".`;
+                {% else %}
+                    impactMessage = 'Wszystkie dokumenty i podfoldery zostaną przeniesione do poziomu głównego.';
+                {% endif %}
+                break;
+            case 'move_to_folder':
+                if (targetFolderSelect.value) {
+                    const targetFolderName = targetFolderSelect.options[targetFolderSelect.selectedIndex].text;
+                    impactMessage = `Wszystkie dokumenty (${documentsCount}) i podfoldery (${subfoldersCount}) zostaną przeniesione do folderu "${targetFolderName}".`;
+                } else {
+                    impactMessage = 'Wybierz folder docelowy aby zobaczyć wpływ tej operacji.';
+                }
+                break;
+            case 'delete_all':
+                impactMessage = `UWAGA: Ta operacja NIEODWRACALNIE usunie ${documentsCount} dokumentów i ${subfoldersCount} podfolderów wraz z całą ich zawartością!`;
+                break;
+        }
+        
+        if (impactMessage) {
+            impactText.textContent = impactMessage;
+            impactWarning.style.display = 'block';
+            
+            // Add warning color for delete_all
+            if (selectedAction.value === 'delete_all') {
+                impactWarning.className = 'card border-danger mb-4';
+                impactWarning.querySelector('.card-title').className = 'card-title text-danger';
+            } else {
+                impactWarning.className = 'card border-warning mb-4';
+                impactWarning.querySelector('.card-title').className = 'card-title text-warning';
+            }
+        } else {
+            impactWarning.style.display = 'none';
+        }
+    }
+    
+    function updateDeleteButton() {
+        const selectedAction = document.querySelector('input[name="action"]:checked');
+        const confirmed = confirmCheck.checked;
+        let canDelete = confirmed;
+        
+        // Additional validation for move_to_folder action
+        if (selectedAction && selectedAction.value === 'move_to_folder') {
+            canDelete = canDelete && targetFolderSelect.value;
+        }
+        
+        deleteBtn.disabled = !canDelete;
+        
+        if (canDelete) {
+            deleteBtn.classList.remove('btn-secondary');
+            deleteBtn.classList.add('btn-danger');
+        } else {
+            deleteBtn.classList.remove('btn-danger');
+            deleteBtn.classList.add('btn-secondary');
+        }
+    }
+    
+    // Event listeners
+    actionRadios.forEach(radio => {
+        radio.addEventListener('change', updateTargetFolderVisibility);
+    });
+    
+    if (targetFolderSelect) {
+        targetFolderSelect.addEventListener('change', updateImpactWarning);
+        targetFolderSelect.addEventListener('change', updateDeleteButton);
+    }
+    
+    confirmCheck.addEventListener('change', updateDeleteButton);
+    
+    // Form submission with final confirmation
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!confirmCheck.checked) {
+            alert('Proszę potwierdzić usunięcie folderu.');
+            return;
+        }
+        
+        const selectedAction = document.querySelector('input[name="action"]:checked');
+        const folderName = "{{ folder.nazwa|escapejs }}";
+        
+        let confirmMessage = `OSTATECZNE POTWIERDZENIE\n\nCzy na pewno chcesz usunąć folder "${folderName}"?\n\n`;
+        
+        if (selectedAction) {
+            switch (selectedAction.value) {
+                case 'move_to_parent':
+                    {% if folder.rodzic %}
+                        confirmMessage += `Zawartość zostanie przeniesiona do folderu "{{ folder.rodzic.get_full_path }}".`;
+                    {% else %}
+                        confirmMessage += 'Zawartość zostanie przeniesiona do poziomu głównego.';
+                    {% endif %}
+                    break;
+                case 'move_to_folder':
+                    const targetFolderName = targetFolderSelect.options[targetFolderSelect.selectedIndex].text;
+                    confirmMessage += `Zawartość zostanie przeniesiona do folderu "${targetFolderName}".`;
+                    break;
+                case 'delete_all':
+                    confirmMessage += `WSZYSTKIE DOKUMENTY I PODFOLDERY ZOSTANĄ NIEODWRACALNIE USUNIĘTE!\n\nTo działanie NIE MOŻE zostać cofnięte!`;
+                    break;
+            }
+        }
+        
+        confirmMessage += '\n\nKliknij OK aby kontynuować lub Anuluj aby wrócić.';
+        
+        const confirmed = confirm(confirmMessage);
+        
+        if (confirmed) {
+            // Show loading state
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Usuwanie...';
+            
+            // Submit form
+            form.submit();
+        }
+    });
+    
+    // Initialize
+    updateTargetFolderVisibility();
+    updateDeleteButton();
+    
+    // Auto-focus confirmation checkbox if no contents to handle
+    if (documentsCount === 0 && subfoldersCount === 0) {
+        confirmCheck.focus();
+    } else {
+        // Focus first action radio
+        const firstRadio = document.querySelector('input[name="action"]');
+        if (firstRadio) firstRadio.focus();
+    }
+});
+</script>
+
+<style>
+.card.border-danger {
+    border-color: #dc3545 !important;
+}
+
+.card.border-warning {
+    border-color: #ffc107 !important;
+}
+
+.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+.form-check-input:checked {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-danger:disabled {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .d-flex.justify-content-between {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .d-flex.justify-content-between .btn {
+        width: 100%;
+    }
+    
+    .row .col-md-6 {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Animation */
+.card {
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}
