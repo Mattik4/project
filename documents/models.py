@@ -171,10 +171,14 @@ class Document(models.Model):
         super().delete(*args, **kwargs)
 
     def get_file_size_display(self):
-        if not self.rozmiar_pliku: return "0 B"
+        """Return human readable file size"""
+        if not self.rozmiar_pliku:
+            return "0 B"
+        
         size = self.rozmiar_pliku
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if size < 1024.0: return f"{size:.1f} {unit}"
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
             size /= 1024.0
         return f"{size:.1f} PB"
 
@@ -233,26 +237,37 @@ class Document(models.Model):
             ("comment_document", "Can comment on document"),
         )
 
-
 class DocumentVersion(models.Model):
     """Document version control"""
     dokument = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='wersje')
     numer_wersji = models.PositiveIntegerField()
     data_utworzenia = models.DateTimeField(auto_now_add=True)
-    utworzony_przez = models.ForeignKey(User, on_delete=models.CASCADE) # No related_name needed unless accessing versions from User
-    plik = models.FileField(upload_to='document_versions/%Y/%m/%d/', blank=True, null=True) # Path can be more specific
+    utworzony_przez = models.ForeignKey(User, on_delete=models.CASCADE)
+    plik = models.FileField(upload_to='document_versions/%Y/%m/%d/', blank=True, null=True)
     komentarz = models.TextField(blank=True)
-    rozmiar_pliku = models.PositiveIntegerField(default=0, null=True, blank=True) # Allow null/blank
+    rozmiar_pliku = models.PositiveIntegerField(default=0, null=True, blank=True)
     hash_pliku = models.CharField(max_length=64, blank=True)
 
     def __str__(self):
         return f"{self.dokument.nazwa} v{self.numer_wersji}"
 
+    def get_file_size_display(self):
+        """Return human readable file size"""
+        if not self.rozmiar_pliku:
+            return "0 B"
+        
+        size = self.rozmiar_pliku
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} PB"
+
     def save(self, *args, **kwargs):
         if self.plik and hasattr(self.plik, 'size') and not self.rozmiar_pliku:
             self.rozmiar_pliku = self.plik.size
 
-            if self.plik.file: # Ensure file is openable
+            if self.plik.file:
                 import hashlib
                 self.plik.seek(0)
                 file_hash = hashlib.sha256()

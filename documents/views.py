@@ -254,17 +254,17 @@ def document_detail(request, pk):
         )
 
     context = {
-        'document': document,
-        'versions': document.wersje.all(),
-        'comments': document.komentarze.all(), # The prefetched ones
-        'metadata': document.metadane.all(),
-        'can_edit_this_document': user_can_edit_document(request.user, document),
-        'can_delete_this_document': user_can_delete_document(request.user, document),
-        'can_download_this_document': user_can_view_document(request.user, document), # Simplified
-        'can_comment_on_this_document': user_can_comment_on_document(request.user, document),
-        'can_share_this_document': user_can_share_document(request.user, document),
-        'comment_form': comment_form,
-    }
+    'document': document,
+    'versions': document.wersje.all(),
+    'comments': document.komentarze.all(),
+    'metadata': document.metadane.all(),
+    'can_edit': user_can_edit_document(request.user, document),
+    'can_delete': user_can_delete_document(request.user, document),
+    'can_download': user_can_view_document(request.user, document),  # dla pobierania
+    'user_can_comment': user_can_comment_on_document(request.user, document),
+    'can_share': user_can_share_document(request.user, document),
+    'comment_form': comment_form,
+}
     return render(request, 'documents/document_detail.html', context)
 
 
@@ -687,4 +687,46 @@ def document_preview(request, pk):
         return redirect('documents:document_detail', pk=document.pk)
     except Exception as e:
         messages.error(request, f"Wystąpił błąd podczas próby podglądu pliku: {e}")
+        return redirect('documents:document_detail', pk=document.pk)
+
+@login_required
+def document_version_download(request, document_pk, version_pk):
+    """Download specific version of document file"""
+    document = get_object_or_404(Document, pk=document_pk, usunieto=False)
+    version = get_object_or_404(DocumentVersion, pk=version_pk, dokument=document)
+
+    # Check permissions (user must be able to view the document)
+    if not user_can_view_document(request.user, document):
+        raise PermissionDenied("Nie masz uprawnień do pobrania tego dokumentu.")
+
+    if not version.plik:
+        raise Http404("Plik wersji nie został znaleziony.")
+
+    try:
+        # Log download activity
+        ActivityLog.objects.create(
+            uzytkownik=request.user,
+            typ_aktywnosci='pobieranie',
+            dokument=document,
+            szczegoly=f"Pobranie wersji {version.numer_wersji} dokumentu {document.nazwa}",
+            adres_ip=get_client_ip(request)
+        )
+
+        # Serve file with version info in filename
+        base_name = os.path.splitext(document.nazwa)[0]
+        ext = os.path.splitext(document.nazwa)[1]
+        version_filename = f"{base_name}_v{version.numer_wersji}{ext}"
+
+        response = FileResponse(
+            version.plik.open('rb'),
+            as_attachment=True,
+            filename=version_filename
+        )
+        return response
+
+    except FileNotFoundError:
+        messages.error(request, "Plik wersji nie został znaleziony na serwerze.")
+        return redirect('documents:document_detail', pk=document.pk)
+    except Exception as e:
+        messages.error(request, f"Wystąpił błąd podczas próby pobrania pliku: {e}")
         return redirect('documents:document_detail', pk=document.pk)

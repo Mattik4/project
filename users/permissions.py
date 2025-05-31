@@ -86,18 +86,17 @@ def user_can_comment_on_document(user, document):
     if not user.is_authenticated:
         return False
 
-    # If document allows public comments (add a field to Document model if needed)
-    # if document.allow_public_comments:
-    #    return True
-
-    # Admin, editor, or reader can comment if they can view the document
-    if user_can_view_document(user, document) and \
-       (user.is_superuser or (hasattr(user, 'profile') and (user.profile.is_admin or user.profile.is_editor or user.profile.is_reader))):
-        # Optionally, add a specific 'comment_document' Guardian permission for more granular control
-        # if user.has_perm('comment_document', document):
-        #     return True
+    # Najpierw sprawdź czy może przeglądać dokument
+    if not user_can_view_document(user, document):
+        return False
+    
+    # Jeśli może przeglądać, sprawdź czy ma rolę pozwalającą na komentowanie
+    if user.is_superuser or (hasattr(user, 'profile') and 
+                           (user.profile.is_admin or user.profile.is_editor or user.profile.is_reader)):
         return True
-    return False
+        
+    # Sprawdź explicit permission do komentowania
+    return user.has_perm('comment_document', document)
 
 
 def user_can_share_document(user, document):
@@ -111,9 +110,8 @@ def user_can_share_document(user, document):
     if document.wlasciciel == user and (hasattr(user, 'profile') and (user.profile.is_admin or user.profile.is_editor)):
         return True
     
-    # Check if user has explicit share permission (less common for editors unless they own it)
-    # if hasattr(user, 'profile') and user.profile.is_editor and user.has_perm('share_document', document):
-    #    return True
+    if hasattr(user, 'profile') and user.profile.is_editor and user.has_perm('share_document', document):
+        return True
 
     return False
 
@@ -219,3 +217,84 @@ def user_can_delete_folder(user, folder):
     #     return True
         
     return False
+
+def admin_grant_document_access(admin_user, target_user, document, permissions=['browse_document']):
+    """
+    Funkcja dla administratora do nadawania uprawnień do dokumentu.
+    
+    Args:
+        admin_user: Użytkownik administrator nadający uprawnienia
+        target_user: Użytkownik otrzymujący uprawnienia  
+        document: Dokument do którego nadawane są uprawnienia
+        permissions: Lista uprawnień do nadania (domyślnie tylko przeglądanie)
+    
+    Available permissions:
+        - 'browse_document': Przeglądanie dokumentu
+        - 'download_document': Pobieranie dokumentu  
+        - 'comment_document': Komentowanie dokumentu
+        - 'change_document': Edycja dokumentu
+        - 'delete_document': Usuwanie dokumentu
+        - 'share_document': Udostępnianie dokumentu
+    """
+    # Sprawdź czy użytkownik ma uprawnienia administratora
+    if not (admin_user.is_superuser or (hasattr(admin_user, 'profile') and admin_user.profile.is_admin)):
+        raise PermissionError("Tylko administrator może nadawać uprawnienia do dokumentów.")
+    
+    # Nadaj uprawnienia
+    from guardian.shortcuts import assign_perm
+    from documents.models import ActivityLog
+    
+    for permission in permissions:
+        assign_perm(permission, target_user, document)
+    
+    # Zaloguj aktywność
+    ActivityLog.objects.create(
+        uzytkownik=admin_user,
+        typ_aktywnosci='udostepnianie',
+        dokument=document,
+        szczegoly=f"Nadano uprawnienia {', '.join(permissions)} użytkownikowi {target_user.get_full_name()} do dokumentu {document.nazwa}",
+        adres_ip='127.0.0.1'  # W rzeczywistej aplikacji pobierz prawdziwy IP
+    )
+    
+    return True
+
+
+def admin_revoke_document_access(admin_user, target_user, document, permissions=None):
+    """
+    Funkcja dla administratora do odbierania uprawnień do dokumentu.
+    
+    Args:
+        admin_user: Użytkownik administrator odbierający uprawnienia
+        target_user: Użytkownik tracący uprawnienia
+        document: Dokument z którego odbierane są uprawnienia  
+        permissions: Lista uprawnień do odebrania (None = wszystkie)
+    """
+    # Sprawdź czy użytkownik ma uprawnienia administratora
+    if not (admin_user.is_superuser or (hasattr(admin_user, 'profile') and admin_user.profile.is_admin)):
+        raise PermissionError("Tylko administrator może odbierać uprawnienia do dokumentów.")
+    
+    from guardian.shortcuts import remove_perm
+    from documents.models import ActivityLog
+    
+    # Jeśli nie podano listy uprawnień, usuń wszystkie
+    if permissions is None:
+        permissions = [
+            'browse_document', 'download_document', 'comment_document',
+            'change_document', 'delete_document', 'share_document'
+        ]
+    
+    # Usuń uprawnienia
+    for permission in permissions:
+        if target_user.has_perm(permission, document):
+            remove_perm(permission, target_user, document)
+    
+    # Zaloguj aktywność
+    ActivityLog.objects.create(
+        uzytkownik=admin_user,
+        typ_aktywnosci='zmiana_uprawnien',
+        dokument=document,
+        szczegoly=f"Odebrano uprawnienia {', '.join(permissions)} użytkownikowi {target_user.get_full_name()} do dokumentu {document.nazwa}",
+        adres_ip='127.0.0.1'
+    )
+    
+    return True

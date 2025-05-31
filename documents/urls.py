@@ -25,6 +25,7 @@ urlpatterns = [
     path('folders/create/<int:parent_id>/', views.folder_create, name='folder_create_in_parent'),
     path('folders/<int:pk>/edit/', views.folder_edit, name='folder_edit'),
     path('folders/<int:pk>/delete/', views.folder_delete, name='folder_delete'),
+    path('documents/<int:document_pk>/version/<int:version_pk>/download/', views.document_version_download, name='document_version_download'),
     
     # Search and API
     path('search/', views.search_documents, name='search_documents'),

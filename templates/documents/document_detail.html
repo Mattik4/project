@@ -55,7 +55,7 @@
             </div>
             <div class="card-footer bg-light">
                 <div class="d-flex justify-content-start gap-2">
-                    {% if can_download and document.plik %}
+                    {% if can_download_this_document and document.plik %}
                     <a href="{% url 'documents:document_download' document.id %}" class="btn btn-success btn-sm">
                         <i class="bi bi-download me-2"></i>Pobierz
                     </a>
@@ -65,7 +65,7 @@
                         <i class="bi bi-eye me-2"></i>Podgląd
                     </a>
                     {% endif %}
-                    {% if can_edit %}
+                    {% if can_edit_this_document %}
                     <a href="{% url 'documents:document_edit' document.id %}" class="btn btn-warning btn-sm">
                         <i class="bi bi-pencil me-2"></i>Edytuj metadane
                     </a>
@@ -73,7 +73,7 @@
                         <i class="bi bi-plus-circle me-2"></i>Nowa wersja pliku
                     </a>
                     {% endif %}
-                    {% if can_delete %}
+                    {% if can_delete_this_document %}
                     <a href="{% url 'documents:document_delete' document.id %}" class="btn btn-danger btn-sm">
                         <i class="bi bi-trash me-2"></i>Usuń dokument
                     </a>
@@ -82,25 +82,53 @@
             </div>
         </div>
 
-        <!-- Document Versions Tab -->
+        <!-- Document Versions Section -->
         {% if versions %}
         <div class="card mb-4">
             <div class="card-header">
                 <h6 class="mb-0"><i class="bi bi-layers me-2"></i>Wersje dokumentu ({{ versions.count }})</h6>
             </div>
-            <ul class="list-group list-group-flush">
+            <div class="card-body">
                 {% for version in versions %}
-                <li class="list-group-item">
-                    <strong>Wersja {{ version.numer_wersji }}</strong>
-                    <small class="text-muted">({{ version.data_utworzenia|date:"d.m.Y H:i" }})</small>
-                    przez {{ version.utworzony_przez.get_full_name|default:version.utworzony_przez.email }}
-                    {% if version.komentarz %}
-                        <p class="small mt-1 mb-0 fst-italic">"{{ version.komentarz }}"</p>
-                    {% endif %}
-                    <a href="#" class="btn btn-outline-secondary btn-sm float-end disabled">Pobierz tę wersję</a> {# TODO: Implement version download #}
-                </li>
+                <div class="d-flex align-items-start mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1">
+                            <h6 class="mb-0 me-2">Wersja {{ version.numer_wersji }}</h6>
+                            {% if forloop.first %}
+                                <span class="badge bg-success">Aktualna</span>
+                            {% endif %}
+                            <small class="text-muted ms-3">{{ version.data_utworzenia|date:"d.m.Y H:i" }}</small>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-person me-1"></i>{{ version.utworzony_przez.get_full_name|default:version.utworzony_przez.email }}
+                                {% if version.rozmiar_pliku %}
+                                    <i class="bi bi-hdd ms-3 me-1"></i>{{ version.rozmiar_pliku }} bytes
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% if version.komentarz %}
+                            <p class="small mb-0 fst-italic text-muted">
+                                <i class="bi bi-chat-quote me-1"></i>"{{ version.komentarz }}"
+                            </p>
+                        {% endif %}
+                    </div>
+                    <div class="text-end">
+                        {% if version.plik %}
+                            <a href="#" class="btn btn-outline-primary btn-sm" title="Pobierz wersję {{ version.numer_wersji }}">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
                 {% endfor %}
-            </ul>
+            </div>
+            <div class="card-footer bg-light">
+                <small class="text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Kliknij "Pobierz" aby pobrać konkretną wersję. Nazwy plików zawierają numer wersji.
+                </small>
+            </div>
         </div>
         {% endif %}
 
@@ -135,7 +163,6 @@
                                 <p class="mb-1 mt-1">{{ reply.tresc|linebreaksbr }}</p>
                             </div>
                         {% endfor %}
-                        {# <a href="#" class="small reply-link" data-comment-id="{{ comment.id }}">Odpowiedz</a> #}
                     </div>
                     {% endfor %}
                 {% else %}
@@ -143,11 +170,11 @@
                 {% endif %}
             </div>
 
-            {% if user_can_comment %}
+            {% if can_comment_on_this_document %}
             <div class="card-footer bg-light">
                 <form method="post" action="{% url 'documents:document_detail' document.pk %}#comments-section" id="comment-form">
                     {% csrf_token %}
-                    <input type="hidden" name="parent_id" id="parent_id_input" value=""> {# For replies #}
+                    <input type="hidden" name="parent_id" id="parent_id_input" value="">
                     <div class="mb-2">
                         {{ comment_form.tresc }}
                         {% if comment_form.tresc.errors %}
@@ -167,10 +194,10 @@
             </div>
             {% endif %}
         </div>
-        <a name="comments-section"></a> {# Anchor for redirecting after comment post #}
+        <a name="comments-section"></a>
 
 
-        <!-- Metadata (if any) - You can expand this -->
+        <!-- Metadata (if any) -->
         {% if metadata %}
         <div class="card mt-4">
             <div class="card-header">
@@ -200,32 +227,6 @@ document.addEventListener('DOMContentLoaded', function() {
             commentsSection.scrollIntoView({ behavior: 'smooth' });
         }
     }
-
-    // Basic reply functionality (optional, can be expanded)
-    // const replyLinks = document.querySelectorAll('.reply-link');
-    // const commentForm = document.getElementById('comment-form');
-    // const parentIdInput = document.getElementById('parent_id_input');
-    // const commentTextarea = commentForm.querySelector('textarea[name="tresc"]');
-
-    // replyLinks.forEach(link => {
-    //     link.addEventListener('click', function(e) {
-    //         e.preventDefault();
-    //         const commentId = this.dataset.commentId;
-    //         parentIdInput.value = commentId;
-    //         commentTextarea.focus();
-    //         commentTextarea.placeholder = "Odpowiedz na komentarz...";
-    //         // You might want to move the form or highlight the parent comment
-    //         // For now, just setting the parent_id and focusing.
-    //     });
-    // });
-
-    // Clear parent_id if user starts typing a new top-level comment
-    // commentTextarea.addEventListener('input', function() {
-    //     if (parentIdInput.value !== '' && this.value === '') { // Or some other logic
-    //         // parentIdInput.value = '';
-    //         // this.placeholder = "Dodaj komentarz...";
-    //     }
-    // });
 });
 </script>
 <style>
@@ -235,7 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
     margin-bottom: 0 !important;
 }
 .comment-reply {
-    background-color: #f8f9fa; /* Light background for replies */
+    background-color: #f8f9fa;
     padding: 0.5rem;
     border-radius: 0.25rem;
 }
