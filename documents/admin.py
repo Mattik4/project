@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.models import User
 from guardian.admin import GuardedModelAdmin
-from guardian.shortcuts import get_objects_for_user
+from guardian.shortcuts import assign_perm, remove_perm, get_perms
 from .models import (
     Document, DocumentVersion, Folder, Tag, DocumentTag, 
     DocumentMetadata, Comment, ActivityLog, DocumentShare, SystemSettings
@@ -240,3 +240,64 @@ class SystemSettingsAdmin(admin.ModelAdmin):
     #     if obj: # When editing an object
     #         return self.readonly_fields + ('klucz',)
     #     return self.readonly_fields
+
+def grant_view_permission(modeladmin, request, queryset):
+    """Nadaj uprawnienia do przeglądania wybranym dokumentom"""
+    if not queryset:
+        modeladmin.message_user(request, "Nie wybrano żadnych dokumentów.", level='error')
+        return
+    
+    # Tutaj możesz dodać formularz do wyboru użytkowników
+    # Na razie jako przykład, nadajmy uprawnienia wszystkim edytorom
+    from users.models import Role, UserProfile
+    try:
+        editor_role = Role.objects.get(nazwa='edytor')
+        editor_profiles = UserProfile.objects.filter(rola=editor_role, aktywny=True)
+        
+        granted_count = 0
+        for document in queryset:
+            for profile in editor_profiles:
+                assign_perm('browse_document', profile.user, document)
+                assign_perm('comment_document', profile.user, document)
+                granted_count += 1
+        
+        modeladmin.message_user(
+            request, 
+            f"Nadano uprawnienia przeglądania i komentowania {granted_count} użytkownikom dla {queryset.count()} dokumentów."
+        )
+    except Role.DoesNotExist:
+        modeladmin.message_user(request, "Rola 'edytor' nie istnieje.", level='error')
+
+grant_view_permission.short_description = "Nadaj uprawnienia przeglądania edytorom"
+
+def grant_download_permission(modeladmin, request, queryset):
+    """Nadaj uprawnienia do pobierania wybranym dokumentom"""
+    from users.models import Role, UserProfile
+    try:
+        editor_role = Role.objects.get(nazwa='edytor')
+        editor_profiles = UserProfile.objects.filter(rola=editor_role, aktywny=True)
+        
+        granted_count = 0
+        for document in queryset:
+            for profile in editor_profiles:
+                assign_perm('browse_document', profile.user, document)
+                assign_perm('comment_document', profile.user, document)
+                assign_perm('download_document', profile.user, document)
+                granted_count += 1
+        
+        modeladmin.message_user(
+            request, 
+            f"Nadano pełne uprawnienia {granted_count} użytkownikom dla {queryset.count()} dokumentów."
+        )
+    except Role.DoesNotExist:
+        modeladmin.message_user(request, "Rola 'edytor' nie istnieje.", level='error')
+
+grant_download_permission.short_description = "Nadaj pełne uprawnienia edytorom"
+
+# Dodaj te akcje do DocumentAdmin:
+DocumentAdmin.actions = [
+    make_documents_published, 
+    make_documents_archived, 
+    grant_view_permission,
+    grant_download_permission
+]    

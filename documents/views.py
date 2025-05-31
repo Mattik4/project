@@ -239,7 +239,7 @@ def document_detail(request, pk):
             new_comment.save()
             messages.success(request, 'Komentarz został dodany pomyślnie.')
             ActivityLog.objects.create(
-                uzytkownik=request.user, typ_aktywnosci='komentarz', dokument=document,
+                uzytkownik=request.user, typ_aktywnosci='komentowanie', dokument=document,
                 szczegoly=f"Dodano komentarz do dokumentu {document.nazwa}", adres_ip=get_client_ip(request)
             )
             return redirect('documents:document_detail', pk=document.pk)
@@ -253,18 +253,19 @@ def document_detail(request, pk):
             szczegoly=f"Wyświetlenie dokumentu {document.nazwa}", adres_ip=get_client_ip(request)
         )
 
+    # POPRAWIONY KONTEKST - nazwy zmiennych muszą się zgadzać z szablonem
     context = {
-    'document': document,
-    'versions': document.wersje.all(),
-    'comments': document.komentarze.all(),
-    'metadata': document.metadane.all(),
-    'can_edit': user_can_edit_document(request.user, document),
-    'can_delete': user_can_delete_document(request.user, document),
-    'can_download': user_can_view_document(request.user, document),  # dla pobierania
-    'user_can_comment': user_can_comment_on_document(request.user, document),
-    'can_share': user_can_share_document(request.user, document),
-    'comment_form': comment_form,
-}
+        'document': document,
+        'versions': document.wersje.all(),
+        'comments': document.komentarze.all(),
+        'metadata': document.metadane.all(),
+        'can_edit_this_document': user_can_edit_document(request.user, document),
+        'can_delete_this_document': user_can_delete_document(request.user, document),
+        'can_download_this_document': user_can_view_document(request.user, document),
+        'can_comment_on_this_document': user_can_comment_on_document(request.user, document),
+        'can_share_this_document': user_can_share_document(request.user, document),
+        'comment_form': comment_form,
+    }
     return render(request, 'documents/document_detail.html', context)
 
 

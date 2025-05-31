@@ -220,9 +220,23 @@ class CommentForm(forms.ModelForm):
             'tresc': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3,
-                'placeholder': 'Dodaj komentarz...'
+                'placeholder': 'Dodaj komentarz...',
+                'required': True
             })
         }
+        labels = {
+            'tresc': ''  # Usuwa label, bo mamy placeholder
+        }
+
+    def clean_tresc(self):
+        tresc = self.cleaned_data.get('tresc', '').strip()
+        if not tresc:
+            raise ValidationError("Komentarz nie może być pusty.")
+        if len(tresc) < 3:
+            raise ValidationError("Komentarz musi mieć co najmniej 3 znaki.")
+        if len(tresc) > 1000:
+            raise ValidationError("Komentarz nie może być dłuższy niż 1000 znaków.")
+        return tresc
 
 
 class TagCreateForm(forms.ModelForm):

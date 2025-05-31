@@ -18,16 +18,15 @@ def user_can_view_document(user, document):
     if not user.is_authenticated:
         return False
 
-    # Public documents (if you add such a concept, e.g., document.is_public)
-    # if document.is_public:
-    #     return True
-
+    # Administratorzy widzą wszystko
     if user.is_superuser or (hasattr(user, 'profile') and user.profile.is_admin):
         return True
 
+    # Właściciel zawsze może przeglądać swoje dokumenty
     if document.wlasciciel == user:
         return True
 
+    # Dla wszystkich innych - tylko jawnie nadane uprawnienia przez administratora
     return user.has_perm('browse_document', document)
 
 
@@ -90,12 +89,19 @@ def user_can_comment_on_document(user, document):
     if not user_can_view_document(user, document):
         return False
     
-    # Jeśli może przeglądać, sprawdź czy ma rolę pozwalającą na komentowanie
-    if user.is_superuser or (hasattr(user, 'profile') and 
-                           (user.profile.is_admin or user.profile.is_editor or user.profile.is_reader)):
+    # Sprawdź czy profil jest aktywny
+    if hasattr(user, 'profile') and not user.profile.aktywny:
+        return False
+    
+    # Administratorzy mogą komentować wszystko co widzą
+    if user.is_superuser or (hasattr(user, 'profile') and user.profile.is_admin):
+        return True
+    
+    # Właściciel może komentować swoje dokumenty
+    if document.wlasciciel == user:
         return True
         
-    # Sprawdź explicit permission do komentowania
+    # Dla innych - sprawdź jawnie nadane uprawnienie do komentowania
     return user.has_perm('comment_document', document)
 
 
