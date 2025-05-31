@@ -38,21 +38,7 @@
             
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'documents:home' %}">
-                            <i class="bi bi-house"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'documents:document_list' %}">
-                            <i class="bi bi-files"></i> Dokumenty
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'documents:folder_list' %}">
-                            <i class="bi bi-folder"></i> Foldery
-                        </a>
-                    </li>
+                    <!-- Navigation removed for cleaner file explorer look -->
                 </ul>
                 
                 <ul class="navbar-nav">
@@ -147,11 +133,8 @@
                         
                         <h6 class="text-muted">NAWIGACJA</h6>
                         <nav class="nav nav-pills flex-column">
-                            <a class="nav-link" href="{% url 'documents:document_list' %}">
-                                <i class="bi bi-files"></i> Wszystkie dokumenty
-                            </a>
-                            <a class="nav-link" href="{% url 'documents:folder_list' %}">
-                                <i class="bi bi-folder"></i> Struktura folderów
+                            <a class="nav-link" href="{% url 'documents:home' %}">
+                                <i class="bi bi-house"></i> Główny folder
                             </a>
                         </nav>
                         
@@ -161,6 +144,12 @@
                             <nav class="nav nav-pills flex-column">
                                 <a class="nav-link" href="{% url 'admin:index' %}">
                                     <i class="bi bi-gear"></i> Panel Admin
+                                </a>
+                                <a class="nav-link" href="{% url 'documents:document_list' %}">
+                                    <i class="bi bi-files"></i> Wszystkie dokumenty
+                                </a>
+                                <a class="nav-link" href="{% url 'documents:folder_list' %}">
+                                    <i class="bi bi-folder"></i> Struktura folderów
                                 </a>
                             </nav>
                         {% endif %}

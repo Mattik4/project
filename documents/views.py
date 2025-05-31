@@ -27,35 +27,100 @@ import mimetypes
 from datetime import datetime
 
 
-def home(request):
-    """Home page with recent documents"""
+def home(request, folder_id=None):
+    """New dashboard with file explorer style"""
+    current_folder = None
+    breadcrumbs = []
+    
+    # Get current folder if specified
+    if folder_id:
+        current_folder = get_object_or_404(Folder, pk=folder_id)
+        # Check permissions
+        if not user_can_view_folder(request.user, current_folder):
+            messages.error(request, "Nie masz uprawnień do tego folderu.")
+            return redirect('documents:home')
+        
+        # Build breadcrumbs
+        temp_folder = current_folder
+        while temp_folder:
+            breadcrumbs.insert(0, temp_folder)
+            temp_folder = temp_folder.rodzic
+    
     if request.user.is_authenticated:
-        # Get documents user can view
+        # Get folders in current location
+        if current_folder:
+            if request.user.is_superuser or request.user.profile.is_admin:
+                folders = Folder.objects.filter(rodzic=current_folder).order_by('nazwa')
+                documents = Document.objects.filter(
+                    folder=current_folder, usunieto=False
+                ).select_related('wlasciciel').order_by('nazwa')
+            else:
+                folders = Folder.objects.filter(
+                    rodzic=current_folder, wlasciciel=request.user
+                ).order_by('nazwa')
+                documents = Document.objects.filter(
+                    folder=current_folder, wlasciciel=request.user, usunieto=False
+                ).select_related('wlasciciel').order_by('nazwa')
+        else:
+            # Root level - show only items in root folders or without folder
+            if request.user.is_superuser or request.user.profile.is_admin:
+                folders = Folder.objects.filter(rodzic=None).order_by('nazwa')
+                # Show documents that are in root folders or have no folder assigned
+                documents = Document.objects.filter(
+                    Q(folder__rodzic=None) | Q(folder=None), 
+                    usunieto=False
+                ).select_related('wlasciciel', 'folder').order_by('nazwa')
+            else:
+                folders = Folder.objects.filter(
+                    rodzic=None, wlasciciel=request.user
+                ).order_by('nazwa')
+                documents = Document.objects.filter(
+                    Q(folder__rodzic=None, wlasciciel=request.user) | Q(folder=None, wlasciciel=request.user),
+                    usunieto=False
+                ).select_related('wlasciciel', 'folder').order_by('nazwa')
+        
+        # Add folder stats for each folder
+        for folder in folders:
+            folder.doc_count = folder.documents.filter(usunieto=False).count()
+            folder.subfolder_count = folder.podkatalogi.count()
+        
+        # Quick stats
         if request.user.is_superuser or request.user.profile.is_admin:
-            recent_documents = Document.objects.filter(
-                usunieto=False
-            ).select_related('wlasciciel', 'folder').order_by('-ostatnia_modyfikacja')[:10]
-            
             total_documents = Document.objects.filter(usunieto=False).count()
             total_folders = Folder.objects.count()
+            total_size = sum(doc.rozmiar_pliku or 0 for doc in Document.objects.filter(usunieto=False))
         else:
-            # For regular users, show only documents they can view
-            user_documents = Document.objects.filter(
-                wlasciciel=request.user, usunieto=False
-            ).select_related('wlasciciel', 'folder').order_by('-ostatnia_modyfikacja')[:10]
-            
-            recent_documents = user_documents
-            total_documents = Document.objects.filter(wlasciciel=request.user, usunieto=False).count()
+            user_documents = Document.objects.filter(wlasciciel=request.user, usunieto=False)
+            total_documents = user_documents.count()
             total_folders = Folder.objects.filter(wlasciciel=request.user).count()
+            total_size = sum(doc.rozmiar_pliku or 0 for doc in user_documents)
+        
     else:
-        recent_documents = []
+        folders = []
+        documents = []
         total_documents = 0
         total_folders = 0
+        total_size = 0
+    
+    # Convert size to human readable
+    def human_readable_size(size_bytes):
+        if size_bytes == 0:
+            return "0 B"
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.1f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.1f} TB"
     
     context = {
-        'recent_documents': recent_documents,
+        'current_folder': current_folder,
+        'breadcrumbs': breadcrumbs,
+        'folders': folders,
+        'documents': documents,
         'total_documents': total_documents,
         'total_folders': total_folders,
+        'total_size': human_readable_size(total_size),
+        'is_root': current_folder is None,
     }
     return render(request, 'documents/home.html', context)
 
@@ -169,14 +234,28 @@ def document_detail(request, pk):
 
 
 @login_required
-def document_upload(request):
-    """Upload new document"""
+def document_upload(request, folder_id=None):
+    """Upload new document with optional folder parameter"""
+    target_folder = None
+    
+    # Get target folder if specified
+    if folder_id:
+        target_folder = get_object_or_404(Folder, pk=folder_id)
+        # Check permissions
+        if not user_can_view_folder(request.user, target_folder):
+            raise PermissionDenied("Nie masz uprawnień do tego folderu.")
+    
     if request.method == 'POST':
         form = DocumentUploadForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             try:
                 document = form.save(commit=False)
                 document.wlasciciel = request.user
+                
+                # Set folder if specified
+                if target_folder:
+                    document.folder = target_folder
+                
                 document.save()
                 
                 # Save many-to-many relationships (tags)
@@ -194,19 +273,32 @@ def document_upload(request):
                     uzytkownik=request.user,
                     typ_aktywnosci='tworzenie',
                     dokument=document,
-                    szczegoly=f"Utworzono dokument {document.nazwa}",
+                    szczegoly=f"Utworzono dokument {document.nazwa}" + 
+                             (f" w folderze {target_folder.nazwa}" if target_folder else ""),
                     adres_ip=get_client_ip(request)
                 )
                 
                 messages.success(request, f'Dokument "{document.nazwa}" został dodany pomyślnie.')
-                return redirect('documents:document_detail', pk=document.pk)
+                
+                # Redirect back to folder or home
+                if target_folder:
+                    return redirect('documents:folder_view', folder_id=target_folder.id)
+                else:
+                    return redirect('documents:home')
                 
             except Exception as e:
                 messages.error(request, f'Błąd podczas dodawania dokumentu: {str(e)}')
     else:
         form = DocumentUploadForm(user=request.user)
+        
+        # Pre-select target folder if specified
+        if target_folder:
+            form.fields['folder'].initial = target_folder
     
-    context = {'form': form}
+    context = {
+        'form': form,
+        'target_folder': target_folder,
+    }
     return render(request, 'documents/document_upload.html', context)
 
 
@@ -324,6 +416,7 @@ def document_delete(request, pk):
     
     if request.method == 'POST':
         document_name = document.nazwa
+        folder_id = document.folder.id if document.folder else None
         
         # Log deletion activity before deleting
         ActivityLog.objects.create(
@@ -338,7 +431,12 @@ def document_delete(request, pk):
         document.save()
         
         messages.success(request, f'Dokument "{document_name}" został usunięty.')
-        return redirect('documents:document_list')
+        
+        # Redirect back to folder or home
+        if folder_id:
+            return redirect('documents:folder_view', folder_id=folder_id)
+        else:
+            return redirect('documents:home')
     
     context = {'document': document}
     return render(request, 'documents/document_delete.html', context)
@@ -409,13 +507,27 @@ def folder_list(request):
 
 
 @login_required
-def folder_create(request):
-    """Create new folder"""
+def folder_create(request, parent_id=None):
+    """Create new folder with optional parent parameter"""
+    parent_folder = None
+    
+    # Get parent folder if specified
+    if parent_id:
+        parent_folder = get_object_or_404(Folder, pk=parent_id)
+        # Check permissions
+        if not user_can_view_folder(request.user, parent_folder):
+            raise PermissionDenied("Nie masz uprawnień do tego folderu.")
+    
     if request.method == 'POST':
         form = FolderCreateForm(request.POST, user=request.user)
         if form.is_valid():
             folder = form.save(commit=False)
             folder.wlasciciel = request.user
+            
+            # Set parent if specified
+            if parent_folder:
+                folder.rodzic = parent_folder
+            
             folder.save()
             
             # Assign default permissions
@@ -424,12 +536,34 @@ def folder_create(request):
             assign_perm('delete_folder', request.user, folder)
             assign_perm('manage_folder', request.user, folder)
             
+            # Log creation activity
+            ActivityLog.objects.create(
+                uzytkownik=request.user,
+                typ_aktywnosci='tworzenie',
+                folder=folder,
+                szczegoly=f"Utworzono folder {folder.nazwa}" + 
+                         (f" w folderze {parent_folder.nazwa}" if parent_folder else ""),
+                adres_ip=get_client_ip(request)
+            )
+            
             messages.success(request, f'Folder "{folder.nazwa}" został utworzony.')
-            return redirect('documents:folder_list')
+            
+            # Redirect back to parent folder or home
+            if parent_folder:
+                return redirect('documents:folder_view', folder_id=parent_folder.id)
+            else:
+                return redirect('documents:home')
     else:
         form = FolderCreateForm(user=request.user)
+        
+        # Pre-select parent folder if specified
+        if parent_folder:
+            form.fields['rodzic'].initial = parent_folder
     
-    context = {'form': form}
+    context = {
+        'form': form,
+        'parent_folder': parent_folder,
+    }
     return render(request, 'documents/folder_create.html', context)
 
 
@@ -457,7 +591,12 @@ def folder_edit(request, pk):
             )
             
             messages.success(request, f'Folder "{folder.nazwa}" został zaktualizowany.')
-            return redirect('documents:folder_list')
+            
+            # Redirect back to parent folder or home
+            if folder.rodzic:
+                return redirect('documents:folder_view', folder_id=folder.rodzic.id)
+            else:
+                return redirect('documents:home')
     else:
         form = FolderUpdateForm(instance=folder, user=request.user)
     
@@ -532,10 +671,16 @@ def folder_delete(request, pk):
                 )
                 
                 # Delete the folder
+                folder_parent_id = folder.rodzic.id if folder.rodzic else None
                 folder.delete()
                 
                 messages.success(request, f'Folder "{folder_name}" został usunięty.')
-                return redirect('documents:folder_list')
+                
+                # Redirect back to parent folder or home
+                if folder_parent_id:
+                    return redirect('documents:folder_view', folder_id=folder_parent_id)
+                else:
+                    return redirect('documents:home')
                 
             except Exception as e:
                 messages.error(request, f'Błąd podczas usuwania folderu: {str(e)}')

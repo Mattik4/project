@@ -1,0 +1,317 @@
+{% extends 'base.html' %}
+
+{% block title %}Eksplorator plików - Document Manager{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="file-explorer">
+            <!-- Toolbar -->
+            <div class="explorer-toolbar d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-secondary btn-sm me-2" onclick="goBack()" title="Cofnij" id="back-btn">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm me-3" onclick="goForward()" title="Dalej" id="forward-btn">
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                    
+                    <!-- Breadcrumb -->
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb breadcrumb-nav mb-0" id="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="#" onclick="navigateTo(null)">
+                                    <i class="bi bi-house"></i> Główny
+                                </a>
+                            </li>
+                            {% if current_folder %}
+                                {% for folder in breadcrumb_path %}
+                                    <li class="breadcrumb-item">
+                                        <a href="#" onclick="navigateTo({{ folder.id }})">{{ folder.nazwa }}</a>
+                                    </li>
+                                {% endfor %}
+                                <li class="breadcrumb-item active">{{ current_folder.nazwa }}</li>
+                            {% endif %}
+                        </ol>
+                    </nav>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary btn-sm" onclick="createFolder()">
+                        <i class="bi bi-folder-plus me-1"></i>Nowy folder
+                    </button>
+                    <a href="{% url 'documents:document_upload' %}{% if current_folder %}?folder={{ current_folder.id }}{% endif %}" class="btn btn-success btn-sm">
+                        <i class="bi bi-upload me-1"></i>Wgraj plik
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Content Area -->
+            <div class="explorer-content">
+                <div id="explorer-items">
+                    
+                    {% if folders or documents %}
+                        <!-- Folders -->
+                        {% for folder in folders %}
+                        <div class="folder-item" onclick="navigateTo({{ folder.id }})">
+                            <i class="bi bi-folder-fill folder-icon"></i>
+                            <div class="file-info">
+                                <div class="file-name">{{ folder.nazwa }}</div>
+                                <div class="file-meta">
+                                    {{ folder.documents.count }} dokumentów
+                                    {% if folder.podkatalogi.count %}, {{ folder.podkatalogi.count }} podfolderów{% endif %}
+                                    • {{ folder.data_utworzenia|timesince }} temu
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <div class="custom-dropdown">
+                                    <button class="custom-dropdown-toggle" onclick="event.stopPropagation(); toggleDropdown(this)">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <div class="custom-dropdown-menu">
+                                        <a href="#" class="custom-dropdown-item" onclick="navigateTo({{ folder.id }})">
+                                            <i class="bi bi-folder-symlink me-2"></i>Otwórz
+                                        </a>
+                                        {% if folder.wlasciciel == user or user.is_superuser %}
+                                            <a href="{% url 'documents:folder_edit' folder.id %}" class="custom-dropdown-item">
+                                                <i class="bi bi-pencil me-2"></i>Edytuj
+                                            </a>
+                                            <a href="{% url 'documents:folder_delete' folder.id %}" class="custom-dropdown-item text-danger">
+                                                <i class="bi bi-trash me-2"></i>Usuń
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        <!-- Documents -->
+                        {% for document in documents %}
+                        <div class="file-item" onclick="openFile('{% url 'documents:document_detail' document.id %}')">
+                            <i class="{{ document.get_file_icon }} file-icon"></i>
+                            <div class="file-info">
+                                <div class="file-name">{{ document.nazwa }}</div>
+                                <div class="file-meta">
+                                    {{ document.get_file_size_display }} • {{ document.ostatnia_modyfikacja|timesince }} temu
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <div class="custom-dropdown">
+                                    <button class="custom-dropdown-toggle" onclick="event.stopPropagation(); toggleDropdown(this)">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <div class="custom-dropdown-menu">
+                                        <a href="{% url 'documents:document_detail' document.id %}" class="custom-dropdown-item">
+                                            <i class="bi bi-eye me-2"></i>Szczegóły
+                                        </a>
+                                        {% if document.can_preview %}
+                                            <a href="{% url 'documents:document_preview' document.id %}" target="_blank" class="custom-dropdown-item">
+                                                <i class="bi bi-eye me-2"></i>Podgląd
+                                            </a>
+                                        {% endif %}
+                                        <a href="{% url 'documents:document_download' document.id %}" class="custom-dropdown-item">
+                                            <i class="bi bi-download me-2"></i>Pobierz
+                                        </a>
+                                        {% if document.wlasciciel == user or user.is_superuser %}
+                                            <a href="{% url 'documents:document_edit' document.id %}" class="custom-dropdown-item">
+                                                <i class="bi bi-pencil me-2"></i>Edytuj
+                                            </a>
+                                            <a href="{% url 'documents:document_delete' document.id %}" class="custom-dropdown-item text-danger">
+                                                <i class="bi bi-trash me-2"></i>Usuń
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                    {% else %}
+                        <!-- Empty State -->
+                        <div class="text-center py-5">
+                            <i class="bi bi-folder2-open display-1 text-muted mb-3"></i>
+                            <h5 class="text-muted">Ten folder jest pusty</h5>
+                            <p class="text-muted">Dodaj pliki lub foldery używając przycisków powyżej</p>
+                            <div class="d-flex gap-2 justify-content-center">
+                                <a href="{% url 'documents:document_upload' %}{% if current_folder %}?folder={{ current_folder.id }}{% endif %}" class="btn btn-primary">
+                                    <i class="bi bi-upload me-2"></i>Wgraj plik
+                                </a>
+                                <button class="btn btn-outline-primary" onclick="createFolder()">
+                                    <i class="bi bi-folder-plus me-2"></i>Utwórz folder
+                                </button>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.file-explorer {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    min-height: 500px;
+}
+
+.explorer-toolbar {
+    background: #f8f9fa;
+    padding: 12px 16px;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0;
+}
+
+.breadcrumb-nav {
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+.breadcrumb-nav .breadcrumb-item {
+    font-size: 0.9rem;
+}
+
+.breadcrumb-nav .breadcrumb-item + .breadcrumb-item::before {
+    content: ">";
+    color: #6c757d;
+}
+
+.explorer-content {
+    padding: 16px;
+}
+
+.file-item, .folder-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 4px;
+}
+
+.file-item:hover, .folder-item:hover {
+    background-color: #e3f2fd;
+    transform: translateX(2px);
+}
+
+.folder-item {
+    font-weight: 500;
+}
+
+.file-icon, .folder-icon {
+    margin-right: 12px;
+    font-size: 1.2rem;
+}
+
+.folder-icon {
+    color: #ffc107;
+}
+
+.file-info {
+    flex-grow: 1;
+}
+
+.file-meta {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 2px;
+}
+
+.action-buttons {
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.file-item:hover .action-buttons,
+.folder-item:hover .action-buttons {
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+    .explorer-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .file-item, .folder-item {
+        padding: 12px;
+    }
+    
+    .action-buttons {
+        opacity: 1;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let history = [{% if current_folder %}{{ current_folder.id }}{% else %}null{% endif %}];
+let historyIndex = 0;
+
+function navigateTo(folderId) {
+    const url = folderId ? `/explorer/${folderId}/` : `/explorer/`;
+    window.location.href = url;
+}
+
+function goBack() {
+    if (historyIndex > 0) {
+        historyIndex--;
+        navigateTo(history[historyIndex]);
+    }
+}
+
+function goForward() {
+    if (historyIndex < history.length - 1) {
+        historyIndex++;
+        navigateTo(history[historyIndex]);
+    }
+}
+
+function openFile(url) {
+    window.location.href = url;
+}
+
+function createFolder() {
+    const name = prompt('Podaj nazwę nowego folderu:');
+    if (name && name.trim()) {
+        const currentFolderId = {% if current_folder %}{{ current_folder.id }}{% else %}null{% endif %};
+        const url = `/folders/create/?parent=${currentFolderId}&name=${encodeURIComponent(name.trim())}`;
+        window.location.href = url;
+    }
+}
+
+// Custom dropdown functions (z poprzedniej wersji)
+function toggleDropdown(button) {
+    const dropdown = button.parentElement;
+    const menu = dropdown.querySelector('.custom-dropdown-menu');
+    const isOpen = menu.classList.contains('show');
+    
+    closeAllDropdowns();
+    
+    if (!isOpen) {
+        menu.classList.add('show');
+    }
+}
+
+function closeAllDropdowns() {
+    const openMenus = document.querySelectorAll('.custom-dropdown-menu.show');
+    openMenus.forEach(menu => menu.classList.remove('show'));
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.custom-dropdown')) {
+        closeAllDropdowns();
+    }
+});
+</script>
+{% endblock %}

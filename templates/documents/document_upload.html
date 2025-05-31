@@ -9,6 +9,9 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="bi bi-upload me-2"></i>Dodaj nowy dokument
+                    {% if target_folder %}
+                        <small class="text-muted">do folderu: {{ target_folder.get_full_path }}</small>
+                    {% endif %}
                 </h5>
             </div>
             <div class="card-body">
@@ -111,7 +114,7 @@
                     </div>
                     
                     <div class="d-flex justify-content-between">
-                        <a href="{% url 'documents:home' %}" class="btn btn-outline-secondary">
+                        <a href="{% if target_folder %}{% url 'documents:folder_view' target_folder.id %}{% else %}{% url 'documents:home' %}{% endif %}" class="btn btn-outline-secondary">
                             <i class="bi bi-arrow-left me-2"></i>Anuluj
                         </a>
                         <button type="submit" class="btn btn-primary" id="submit-btn">

@@ -114,3 +114,6 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',  # Django default
     'guardian.backends.ObjectPermissionBackend',  # Guardian
 )
+
+DEFAULT_USER_ROLE = 'czytelnik' 
+DEFAULT_USER_ACTIVE = True

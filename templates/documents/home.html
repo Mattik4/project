@@ -1,168 +1,336 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard - Document Manager{% endblock %}
+{% block title %}
+{% if current_folder %}
+    {{ current_folder.nazwa }} - Document Manager
+{% else %}
+    Dashboard - Document Manager
+{% endif %}
+{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="h2 mb-4">
-            <i class="bi bi-speedometer2"></i> Dashboard
-        </h1>
-    </div>
-</div>
-
-<!-- Statistics Cards -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card bg-primary text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h5 class="card-title">Dokumenty</h5>
-                        <h2 class="mb-0">{{ total_documents }}</h2>
-                    </div>
-                    <div>
-                        <i class="bi bi-files" style="font-size: 3rem; opacity: 0.7;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h5 class="card-title">Foldery</h5>
-                        <h2 class="mb-0">{{ total_folders }}</h2>
-                    </div>
-                    <div>
-                        <i class="bi bi-folder" style="font-size: 3rem; opacity: 0.7;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card bg-info text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h5 class="card-title">Ostatnia aktywność</h5>
-                        <p class="mb-0">{{ request.user.last_login|date:"d.m.Y H:i" }}</p>
-                    </div>
-                    <div>
-                        <i class="bi bi-clock" style="font-size: 3rem; opacity: 0.7;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Recent Documents -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="bi bi-clock-history"></i> Ostatnio zmodyfikowane dokumenty
-                </h5>
-                <a href="{% url 'documents:document_list' %}" class="btn btn-outline-primary btn-sm">
-                    Zobacz wszystkie
+<!-- Action Bar -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb" class="flex-grow-1">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item">
+                <a href="{% url 'documents:home' %}" class="text-decoration-none">
+                    <i class="bi bi-house"></i> Home
                 </a>
-            </div>
-            <div class="card-body">
-                {% if recent_documents %}
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Nazwa</th>
-                                    <th>Folder</th>
-                                    <th>Właściciel</th>
-                                    <th>Ostatnia modyfikacja</th>
-                                    <th>Rozmiar</th>
-                                    <th>Akcje</th>
+            </li>
+            {% for folder in breadcrumbs %}
+                {% if forloop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">
+                        <i class="bi bi-folder"></i> {{ folder.nazwa }}
+                    </li>
+                {% else %}
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'documents:folder_view' folder.id %}" class="text-decoration-none">
+                            <i class="bi bi-folder"></i> {{ folder.nazwa }}
+                        </a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+    
+    <!-- Action Buttons -->
+    <div class="btn-group" role="group">
+        <a href="{% if current_folder %}{% url 'documents:document_upload_to_folder' current_folder.id %}{% else %}{% url 'documents:document_upload' %}{% endif %}" 
+           class="btn btn-primary">
+            <i class="bi bi-file-earmark-plus"></i> Dodaj dokument
+        </a>
+        <a href="{% if current_folder %}{% url 'documents:folder_create_in_parent' current_folder.id %}{% else %}{% url 'documents:folder_create' %}{% endif %}" 
+           class="btn btn-success">
+            <i class="bi bi-folder-plus"></i> Dodaj folder
+        </a>
+    </div>
+</div>
+
+<!-- File Explorer -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            {% if current_folder %}
+                <i class="bi bi-folder-open"></i> {{ current_folder.nazwa }}
+                {% if current_folder.opis %}
+                    <small class="text-muted">- {{ current_folder.opis }}</small>
+                {% endif %}
+            {% else %}
+                <i class="bi bi-files"></i> Moje pliki
+            {% endif %}
+        </h6>
+        
+        <!-- View Options -->
+        <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="view-type" id="grid-view" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary" for="grid-view" title="Widok siatki">
+                <i class="bi bi-grid-3x3-gap"></i>
+            </label>
+            
+            <input type="radio" class="btn-check" name="view-type" id="list-view" autocomplete="off">
+            <label class="btn btn-outline-secondary" for="list-view" title="Widok listy">
+                <i class="bi bi-list-ul"></i>
+            </label>
+        </div>
+    </div>
+    
+    <div class="card-body p-0">
+        <!-- Grid View -->
+        <div id="grid-container" class="p-3">
+            {% if folders or documents %}
+                <div class="row g-3">
+                    <!-- Folders -->
+                    {% for folder in folders %}
+                        <div class="col-lg-2 col-md-3 col-sm-4 col-6">
+                            <div class="file-item folder-item" data-type="folder">
+                                <a href="{% url 'documents:folder_view' folder.id %}" class="text-decoration-none">
+                                    <div class="file-icon">
+                                        <i class="bi bi-folder-fill text-primary"></i>
+                                    </div>
+                                    <div class="file-name">{{ folder.nazwa|truncatechars:20 }}</div>
+                                    <div class="file-info">
+                                        <small class="text-muted">
+                                            {{ folder.doc_count }} dok., {{ folder.subfolder_count }} pod.
+                                        </small>
+                                    </div>
+                                </a>
+                                
+                                <!-- Folder Context Menu -->
+                                <div class="file-actions dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="{% url 'documents:folder_view' folder.id %}">
+                                            <i class="bi bi-folder-open me-2"></i>Otwórz
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="{% url 'documents:folder_create_in_parent' folder.id %}">
+                                            <i class="bi bi-folder-plus me-2"></i>Dodaj podfolder
+                                        </a></li>
+                                        <li><a class="dropdown-item" href="{% url 'documents:document_upload_to_folder' folder.id %}">
+                                            <i class="bi bi-file-earmark-plus me-2"></i>Dodaj dokument
+                                        </a></li>
+                                        {% if folder.wlasciciel == user or user.is_superuser %}
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-warning" href="{% url 'documents:folder_edit' folder.id %}">
+                                                <i class="bi bi-pencil me-2"></i>Edytuj
+                                            </a></li>
+                                            <li><a class="dropdown-item text-danger" href="{% url 'documents:folder_delete' folder.id %}">
+                                                <i class="bi bi-trash me-2"></i>Usuń
+                                            </a></li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    <!-- Documents -->
+                    {% for document in documents %}
+                        <div class="col-lg-2 col-md-3 col-sm-4 col-6">
+                            <div class="file-item document-item" data-type="document">
+                                <a href="{% url 'documents:document_detail' document.id %}" class="text-decoration-none">
+                                    <div class="file-icon">
+                                        <i class="{{ document.get_file_icon }}"></i>
+                                    </div>
+                                    <div class="file-name">{{ document.nazwa|truncatechars:20 }}</div>
+                                    <div class="file-info">
+                                        <small class="text-muted">{{ document.get_file_size_display }}</small>
+                                    </div>
+                                </a>
+                                
+                                <!-- Document Context Menu -->
+                                <div class="file-actions dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="{% url 'documents:document_detail' document.id %}">
+                                            <i class="bi bi-eye me-2"></i>Szczegóły
+                                        </a></li>
+                                        {% if document.download_url %}
+                                            <li><a class="dropdown-item" href="{% url 'documents:document_download' document.id %}">
+                                                <i class="bi bi-download me-2"></i>Pobierz
+                                            </a></li>
+                                        {% endif %}
+                                        {% if document.can_preview %}
+                                            <li><a class="dropdown-item" href="{% url 'documents:document_preview' document.id %}" target="_blank">
+                                                <i class="bi bi-eye me-2"></i>Podgląd
+                                            </a></li>
+                                        {% endif %}
+                                        {% if document.wlasciciel == user or user.is_superuser %}
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-warning" href="{% url 'documents:document_edit' document.id %}">
+                                                <i class="bi bi-pencil me-2"></i>Edytuj
+                                            </a></li>
+                                            <li><a class="dropdown-item text-danger" href="{% url 'documents:document_delete' document.id %}">
+                                                <i class="bi bi-trash me-2"></i>Usuń
+                                            </a></li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <!-- Empty State -->
+                <div class="text-center py-5">
+                    {% if current_folder %}
+                        <i class="bi bi-folder2-open display-1 text-muted mb-3"></i>
+                        <h5 class="text-muted">Folder jest pusty</h5>
+                        <p class="text-muted mb-4">Ten folder nie zawiera jeszcze żadnych plików ani podfolderów.</p>
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="{% url 'documents:document_upload_to_folder' current_folder.id %}" class="btn btn-primary">
+                                <i class="bi bi-file-earmark-plus me-2"></i>Dodaj dokument
+                            </a>
+                            <a href="{% url 'documents:folder_create_in_parent' current_folder.id %}" class="btn btn-success">
+                                <i class="bi bi-folder-plus me-2"></i>Dodaj podfolder
+                            </a>
+                        </div>
+                    {% else %}
+                        <i class="bi bi-files display-1 text-muted mb-3"></i>
+                        <h5 class="text-muted">Zacznij organizować swoje pliki</h5>
+                        <p class="text-muted mb-4">Nie masz jeszcze żadnych folderów ani dokumentów. Utwórz pierwszy folder lub dodaj dokument.</p>
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="{% url 'documents:document_upload' %}" class="btn btn-primary">
+                                <i class="bi bi-file-earmark-plus me-2"></i>Dodaj pierwszy dokument
+                            </a>
+                            <a href="{% url 'documents:folder_create' %}" class="btn btn-success">
+                                <i class="bi bi-folder-plus me-2"></i>Utwórz folder
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- List View -->
+        <div id="list-container" class="d-none">
+            {% if folders or documents %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><i class="bi bi-type"></i> Nazwa</th>
+                                <th><i class="bi bi-calendar"></i> Modyfikowano</th>
+                                <th><i class="bi bi-hdd"></i> Rozmiar</th>
+                                <th><i class="bi bi-person"></i> Właściciel</th>
+                                <th width="80"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Folders -->
+                            {% for folder in folders %}
+                                <tr class="folder-row">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-folder-fill text-primary me-2"></i>
+                                            <a href="{% url 'documents:folder_view' folder.id %}" class="text-decoration-none fw-medium">
+                                                {{ folder.nazwa }}
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td>{{ folder.data_utworzenia|date:"d.m.Y H:i" }}</td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ folder.doc_count }} dok., {{ folder.subfolder_count }} pod.
+                                        </small>
+                                    </td>
+                                    <td>{{ folder.wlasciciel.get_full_name|default:folder.wlasciciel.email }}</td>
+                                    <td>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                <i class="bi bi-three-dots"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="{% url 'documents:folder_view' folder.id %}">Otwórz</a></li>
+                                                {% if folder.wlasciciel == user or user.is_superuser %}
+                                                    <li><a class="dropdown-item" href="{% url 'documents:folder_edit' folder.id %}">Edytuj</a></li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {% for document in recent_documents %}
-                                <tr>
+                            {% endfor %}
+                            
+                            <!-- Documents -->
+                            {% for document in documents %}
+                                <tr class="document-row">
                                     <td>
-                                        <i class="bi bi-file-earmark-{% if document.typ_pliku == 'application/pdf' %}pdf{% elif 'word' in document.typ_pliku %}word{% elif 'excel' in document.typ_pliku %}excel{% else %}text{% endif %}"></i>
-                                        <a href="{% url 'documents:document_detail' document.id %}" class="text-decoration-none">
-                                            {{ document.nazwa }}
-                                        </a>
+                                        <div class="d-flex align-items-center">
+                                            <i class="{{ document.get_file_icon }} me-2"></i>
+                                            <a href="{% url 'documents:document_detail' document.id %}" class="text-decoration-none">
+                                                {{ document.nazwa }}
+                                            </a>
+                                        </div>
                                     </td>
-                                    <td>
-                                        <span class="badge bg-secondary">{{ document.folder.nazwa }}</span>
-                                    </td>
-                                    <td>{{ document.wlasciciel.username }}</td>
                                     <td>{{ document.ostatnia_modyfikacja|date:"d.m.Y H:i" }}</td>
                                     <td>{{ document.get_file_size_display }}</td>
+                                    <td>{{ document.wlasciciel.get_full_name|default:document.wlasciciel.email }}</td>
                                     <td>
-                                        <a href="{% url 'documents:document_detail' document.id %}" class="btn btn-outline-primary btn-sm">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                <i class="bi bi-three-dots"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="{% url 'documents:document_detail' document.id %}">Szczegóły</a></li>
+                                                {% if document.download_url %}
+                                                    <li><a class="dropdown-item" href="{% url 'documents:document_download' document.id %}">Pobierz</a></li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
                                     </td>
                                 </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <div class="text-center py-4">
-                        <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
-                        <h5 class="text-muted mt-3">Brak dokumentów</h5>
-                        <p class="text-muted">Rozpocznij od dodania pierwszego dokumentu.</p>
-                        <a href="{% url 'documents:document_upload' %}" class="btn btn-primary">
-                            <i class="bi bi-upload"></i> Dodaj dokument
-                        </a>
-                    </div>
-                {% endif %}
-            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <!-- Empty state for list view -->
+                <div class="text-center py-5">
+                    <p class="text-muted">Brak plików do wyświetlenia</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
-<!-- Quick Actions (if no recent activity) -->
-{% if not recent_documents %}
+<!-- Quick Stats Footer -->
+{% if is_root %}
 <div class="row mt-4">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-lightning"></i> Szybkie akcje
-                </h5>
-            </div>
-            <div class="card-body">
+        <div class="card bg-light">
+            <div class="card-body py-3">
                 <div class="row text-center">
-                    <div class="col-md-3">
-                        <a href="{% url 'documents:document_upload' %}" class="btn btn-outline-primary btn-lg w-100 mb-3">
-                            <i class="bi bi-upload d-block" style="font-size: 2rem;"></i>
-                            Dodaj dokument
-                        </a>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="bi bi-files text-primary me-2"></i>
+                            <div>
+                                <div class="fw-bold">{{ total_documents }}</div>
+                                <small class="text-muted">Dokumentów</small>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <a href="{% url 'documents:folder_create' %}" class="btn btn-outline-success btn-lg w-100 mb-3">
-                            <i class="bi bi-folder-plus d-block" style="font-size: 2rem;"></i>
-                            Utwórz folder
-                        </a>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="bi bi-folder text-success me-2"></i>
+                            <div>
+                                <div class="fw-bold">{{ total_folders }}</div>
+                                <small class="text-muted">Folderów</small>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <a href="{% url 'documents:document_list' %}" class="btn btn-outline-info btn-lg w-100 mb-3">
-                            <i class="bi bi-search d-block" style="font-size: 2rem;"></i>
-                            Przeglądaj
-                        </a>
-                    </div>
-                    <div class="col-md-3">
-                        <a href="{% url 'admin:index' %}" class="btn btn-outline-warning btn-lg w-100 mb-3">
-                            <i class="bi bi-gear d-block" style="font-size: 2rem;"></i>
-                            Ustawienia
-                        </a>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="bi bi-hdd text-info me-2"></i>
+                            <div>
+                                <div class="fw-bold">{{ total_size }}</div>
+                                <small class="text-muted">Rozmiar</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -170,4 +338,207 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const gridView = document.getElementById('grid-view');
+    const listView = document.getElementById('list-view');
+    const gridContainer = document.getElementById('grid-container');
+    const listContainer = document.getElementById('list-container');
+    
+    // View switching
+    gridView.addEventListener('change', function() {
+        if (this.checked) {
+            gridContainer.classList.remove('d-none');
+            listContainer.classList.add('d-none');
+            localStorage.setItem('file_view', 'grid');
+        }
+    });
+    
+    listView.addEventListener('change', function() {
+        if (this.checked) {
+            gridContainer.classList.add('d-none');
+            listContainer.classList.remove('d-none');
+            localStorage.setItem('file_view', 'list');
+        }
+    });
+    
+    // Remember view preference
+    const savedView = localStorage.getItem('file_view');
+    if (savedView === 'list') {
+        listView.checked = true;
+        listView.dispatchEvent(new Event('change'));
+    }
+    
+    // File item hover effects
+    const fileItems = document.querySelectorAll('.file-item');
+    fileItems.forEach(item => {
+        item.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.transition = 'all 0.2s ease';
+        });
+        
+        item.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+    
+    // Double-click to open
+    fileItems.forEach(item => {
+        item.addEventListener('dblclick', function(e) {
+            e.preventDefault();
+            const link = this.querySelector('a');
+            if (link) {
+                window.location.href = link.href;
+            }
+        });
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+N for new document
+        if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+            e.preventDefault();
+            const uploadUrl = "{% if current_folder %}{% url 'documents:document_upload_to_folder' current_folder.id %}{% else %}{% url 'documents:document_upload' %}{% endif %}";
+            window.location.href = uploadUrl;
+        }
+        
+        // Ctrl+Shift+N for new folder
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+            e.preventDefault();
+            const folderUrl = "{% if current_folder %}{% url 'documents:folder_create_in_parent' current_folder.id %}{% else %}{% url 'documents:folder_create' %}{% endif %}";
+            window.location.href = folderUrl;
+        }
+    });
+});
+</script>
+
+<style>
+.file-item {
+    position: relative;
+    text-align: center;
+    padding: 1rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #fff;
+}
+
+.file-item:hover {
+    border-color: #dee2e6;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.file-item.folder-item:hover {
+    border-color: #0d6efd;
+    background: #f8f9ff;
+}
+
+.file-item.document-item:hover {
+    border-color: #198754;
+    background: #f8fff9;
+}
+
+.file-icon i {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.file-icon .bi-folder-fill {
+    color: #0d6efd;
+}
+
+.file-name {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    word-break: break-word;
+    line-height: 1.2;
+}
+
+.file-info {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.file-actions {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.file-item:hover .file-actions {
+    opacity: 1;
+}
+
+.breadcrumb {
+    background: none;
+    padding: 0;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    content: '›';
+    color: #6c757d;
+}
+
+.breadcrumb-item.active {
+    color: #495057;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 1rem 0.75rem;
+    background: #f8f9fa;
+}
+
+.table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.folder-row {
+    background: #f8f9ff;
+}
+
+.folder-row:hover {
+    background: #e7f1ff;
+}
+
+@media (max-width: 768px) {
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .file-item {
+        padding: 0.75rem 0.25rem;
+    }
+    
+    .file-icon i {
+        font-size: 2.5rem;
+    }
+    
+    .breadcrumb {
+        font-size: 0.875rem;
+    }
+    
+    .file-actions {
+        opacity: 1;
+    }
+}
+
+@media (max-width: 576px) {
+    .col-6 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+}
+</style>
 {% endblock %}

@@ -110,10 +110,10 @@
                                 <div class="d-flex align-items-start justify-content-between mb-3">
                                     <i class="{{ document.get_file_icon }} text-primary" style="font-size: 2.5rem;"></i>
                                     <div class="dropdown">
-                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown"  aria-expanded="false">
                                             <i class="bi bi-three-dots"></i>
                                         </button>
-                                        <ul class="dropdown-menu">
+                                        <ul class="dropdown-menu dropdown-menu-end">
                                             <li><a class="dropdown-item" href="{% url 'documents:document_detail' document.id %}">
                                                 <i class="bi bi-eye me-2"></i>Szczegóły
                                             </a></li>

@@ -276,8 +276,8 @@
 
 <!-- Back Button -->
 <div class="mt-4">
-    <a href="{% url 'documents:document_list' %}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-2"></i>Powrót do listy dokumentów
+    <a href="{% if document.folder %}{% url 'documents:folder_view' document.folder.id %}{% else %}{% url 'documents:home' %}{% endif %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Powrót do folderu
     </a>
 </div>
 {% endblock %}
