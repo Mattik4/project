@@ -11,8 +11,6 @@ from users.models import Role, UserProfile
 
 
 def document_upload_path(instance, filename):
-    """Generate upload path for documents"""
-    # Create unique path: documents/user_id/year/month/uuid_filename
     ext = filename.split('.')[-1]
     filename = f"{uuid.uuid4().hex}.{ext}"
 
@@ -43,7 +41,7 @@ class Folder(models.Model):
     data_utworzenia = models.DateTimeField(auto_now_add=True)
     rodzic = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='podkatalogi')
     wlasciciel = models.ForeignKey(User, on_delete=models.CASCADE, related_name='folders_owned') # Changed related_name for clarity
-    tagi = models.ManyToManyField(Tag, blank=True, verbose_name='Tagi') # Removed related_name='folder_tags' if not specifically needed to avoid clash
+    tagi = models.ManyToManyField(Tag, blank=True, verbose_name='Tagi', related_name='folders')
 
     def __str__(self):
         return self.nazwa
@@ -281,22 +279,6 @@ class DocumentVersion(models.Model):
         db_table = 'wersja_dokumentu'
         unique_together = ['dokument', 'numer_wersji']
         ordering = ['-numer_wersji']
-
-
-class DocumentTag(models.Model): # This seems redundant if Document.tagi = ManyToManyField(Tag) is used directly
-    """Through model for Document-Tag relationship.
-    NOTE: Django creates this automatically for ManyToManyField unless `through` is specified.
-    If you are not adding extra fields to this relationship, you might not need this explicit model.
-    """
-    dokument = models.ForeignKey(Document, on_delete=models.CASCADE)
-    tag = models.ForeignKey(Tag, on_delete=models.CASCADE)
-
-    class Meta:
-        db_table = 'dokument_tag' # If using automatic M2M, table name is documents_document_tags
-        unique_together = ['dokument', 'tag']
-        verbose_name = "Tag dokumentu"
-        verbose_name_plural = "Tagi dokumentów"
-
 
 class DocumentMetadata(models.Model):
     """Custom metadata for documents"""

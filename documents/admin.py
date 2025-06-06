@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from guardian.admin import GuardedModelAdmin
 from guardian.shortcuts import assign_perm, remove_perm, get_perms
 from .models import (
-    Document, DocumentVersion, Folder, Tag, DocumentTag, 
+    Document, DocumentVersion, Folder, Tag, Tag, 
     DocumentMetadata, Comment, ActivityLog, DocumentShare, SystemSettings
 )
 
